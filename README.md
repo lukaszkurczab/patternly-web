@@ -10,9 +10,12 @@ static HTTP server.
 
 ## Production boundary
 
-The administrator route is intentionally unavailable until Firebase web
-configuration and the backend's configured administrator identity are
-available. It does not expose learner data in the browser.
+The administrator route requires deployment-time `window.PATTERNLY_ADMIN_CONFIG`
+with the real Firebase web configuration and
+`window.PATTERNLY_ADMIN_API_ORIGIN` with the HTTPS backend origin. Without both
+values it remains explicitly unavailable. After sign-in, the browser sends only
+the Firebase ID token to the backend API; it never reads Firestore directly and
+does not decide administrator access.
 
 The public page identifies the seller as Łukasz Kurczab and does not offer a
 purchase action. Before a sales launch it still needs the seller's publishable

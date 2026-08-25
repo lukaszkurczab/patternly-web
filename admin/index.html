@@ -6,17 +6,40 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Patternly — Administracja</title>
     <link rel="stylesheet" href="../styles.css" />
+    <script>
+      window.PATTERNLY_ADMIN_CONFIG = window.PATTERNLY_ADMIN_CONFIG || null;
+      window.PATTERNLY_ADMIN_API_ORIGIN = window.PATTERNLY_ADMIN_API_ORIGIN || "";
+    </script>
   </head>
   <body>
     <header class="site-header"><a class="brand" href="../index.html">Patternly<span aria-hidden="true">.</span></a></header>
     <main>
-      <section class="hero" aria-labelledby="admin-title">
+      <section class="hero admin-hero" aria-labelledby="admin-title">
         <p class="eyebrow">OGRANICZONY DOSTĘP</p>
         <h1 id="admin-title">Panel administratora</h1>
-        <p class="lead">Dostęp wymaga zweryfikowanego logowania Firebase, a backend porównuje adres konta z jedynym administratorem skonfigurowanym po stronie serwera. Uprawnienie nie jest przyznawane przez kod strony.</p>
-        <p class="lead">Lokalne repozytorium nie zawiera produkcyjnej konfiguracji Firebase ani danych użytkowników, dlatego logowanie i dane administracyjne są tutaj celowo niedostępne.</p>
-        <a class="button button-secondary" href="../index.html">Wróć do strony publicznej</a>
+        <p class="lead">Zaloguj się kontem Firebase. Backend weryfikuje token i administratora po stronie serwera przed każdym odczytem kolejki.</p>
+        <div id="admin-config-unavailable" class="admin-status admin-status-warning" hidden role="status">Panel jest niedostępny: brakuje środowiskowej konfiguracji Firebase lub API.</div>
+        <form id="admin-login" class="admin-form" hidden>
+          <label for="admin-email">Adres e-mail</label>
+          <input id="admin-email" autocomplete="username" required type="email" />
+          <label for="admin-password">Hasło</label>
+          <input id="admin-password" autocomplete="current-password" required type="password" />
+          <button class="button button-primary" type="submit">Zaloguj się</button>
+        </form>
+        <div id="admin-auth-status" class="admin-status" hidden role="status"></div>
+        <button id="admin-sign-out" class="button button-secondary" hidden type="button">Wyloguj się</button>
+      </section>
+
+      <section id="admin-queue" class="admin-queue" aria-labelledby="queue-title" hidden>
+        <div class="section-heading">
+          <p class="eyebrow">KOLEJKA TRIAGE</p>
+          <h2 id="queue-title">Zgłoszenia oczekujące</h2>
+          <p>Odczyt pochodzi wyłącznie z API Patternly. Ta strona nie ma bezpośredniego dostępu do Firestore i nie nadaje uprawnień.</p>
+        </div>
+        <div id="admin-queue-status" class="admin-status" role="status"></div>
+        <div id="admin-queue-list" class="admin-report-list"></div>
       </section>
     </main>
+    <script type="module" src="./admin.js"></script>
   </body>
 </html>
