@@ -1,81 +1,232 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Patternly — praktyka decyzji technicznych, która prowadzi od rozpoznania wzorca do wyjaśnionej poprawności." />
-    <title>Patternly — praktykuj decyzje techniczne</title>
+    <meta name="theme-color" content="#081328" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Patternly turns technical mistakes into a concrete next practice action."
+    />
+    <link rel="icon" href="assets/brand/mark/patternly-mark-mint.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <title>Patternly — Practice the decision</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="page-progress" aria-hidden="true"><span data-page-progress></span></div>
+
     <header class="site-header">
-      <a class="brand" href="index.html" aria-label="Patternly — strona główna">Patternly<span aria-hidden="true">.</span></a>
-      <nav aria-label="Główna nawigacja">
-        <a href="#jak-dziala">Jak działa</a>
-        <a href="#ceny">Dostęp</a>
-        <a href="admin/">Administracja</a>
-      </nav>
+      <div class="header-inner">
+        <a class="brand" href="index.html" aria-label="Patternly home">
+          <img src="assets/brand/mark/patternly-mark-mint.svg" alt="" width="24" height="24" />
+          <span class="brand-wordmark">Patternly</span>
+        </a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <div class="navigation-links">
+            <a href="#product">Product</a>
+            <a href="#method">Method</a>
+            <a href="#tracks">Tracks</a>
+          </div>
+          <a class="button button-small button-primary nav-action" href="#product">Open Patternly</a>
+        </nav>
+      </div>
     </header>
 
-    <main>
-      <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">PRAKTYKA TECHNICZNA, NIE LOSOWY BANK PYTAŃ</p>
-        <h1 id="hero-title">Ucz się decyzji, które prowadzą do dobrej odpowiedzi.</h1>
-        <p class="lead">Patternly zamienia przygotowanie do rozmów technicznych i certyfikacji w krótką, celową praktykę: rozpoznaj mechanizm, podejmij decyzję, zrozum poprawną odpowiedź i wróć do błędów wtedy, gdy to ma sens.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="#dostep">Zobacz dostęp</a>
-          <a class="button button-secondary" href="#jak-dziala">Jak działa nauka</a>
+    <main id="main-content">
+      <section class="hero section-shell" id="product" aria-labelledby="hero-title">
+        <div class="hero-field" data-decision-field aria-hidden="true">
+          <canvas class="decision-canvas" data-decision-canvas></canvas>
+          <picture>
+            <source type="image/avif" srcset="assets/visuals/decision-field-768.avif 768w, assets/visuals/decision-field-1024.avif 1024w, assets/visuals/decision-field.avif 1536w" sizes="(max-width: 840px) 135vw, 100vw" />
+            <source type="image/webp" srcset="assets/visuals/decision-field-768.webp 768w, assets/visuals/decision-field-1024.webp 1024w, assets/visuals/decision-field.webp 1536w" sizes="(max-width: 840px) 135vw, 100vw" />
+            <img src="assets/visuals/decision-field.png" srcset="assets/visuals/decision-field-768.png 768w, assets/visuals/decision-field-1024.png 1024w, assets/visuals/decision-field.png 1536w" sizes="(max-width: 840px) 135vw, 100vw" alt="" width="1536" height="1024" fetchpriority="high" decoding="async" />
+          </picture>
         </div>
-        <ul class="hero-points" aria-label="Najważniejsze cechy">
-          <li>8 konkretnych ścieżek nauki</li>
-          <li>Praca lokalna także bez sieci</li>
-          <li>Uczciwy postęp oparty na zapisanych odpowiedziach</li>
-        </ul>
+        <div class="hero-copy reveal" data-reveal>
+          <p class="eyebrow">Technical practice, reimagined</p>
+          <h1 id="hero-title">Practice the decision behind the answer.</h1>
+          <p class="hero-description">
+            Patternly turns technical mistakes into a concrete next practice action.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#method">Explore the practice loop <span aria-hidden="true">→</span></a>
+            <a class="button button-secondary" href="#session">Open Patternly <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="hero-note"><span class="status-dot" aria-hidden="true"></span> Local, offline-first practice for technical decisions.</p>
+        </div>
+
+        <div class="hero-stage reveal reveal-delay" data-reveal>
+          <div class="trace-graphic" aria-hidden="true">
+            <span class="trace-line trace-line-one"></span>
+            <span class="trace-line trace-line-two"></span>
+            <span class="trace-line trace-line-three"></span>
+            <span class="trace-line trace-line-four"></span>
+            <span class="trace-node trace-node-one"></span>
+            <span class="trace-node trace-node-two"></span>
+            <span class="trace-node trace-node-three"></span>
+            <span class="trace-node trace-node-four"></span>
+            <span class="trace-node trace-node-five"></span>
+          </div>
+          <p class="trace-label">Decision trace / 01</p>
+
+          <div class="product-card hero-card" data-interactive-card data-state="resolved" aria-label="Interactive SQL indexing practice example">
+            <div class="product-card-topbar">
+              <span class="product-label">SQL · Indexing</span>
+              <span class="live-label"><span class="live-dot" aria-hidden="true"></span> Guided</span>
+            </div>
+            <p class="question-label">Question</p>
+            <h2>Which approach avoids a full table scan on a composite index?</h2>
+            <div class="choice-stack" role="group" aria-label="Choose an answer">
+              <button class="choice-button" type="button" data-answer="a" aria-pressed="false"><span class="choice-key">A</span>Use a single-column index on the most selective column.</button>
+              <button class="choice-button is-correct" type="button" data-answer="b" aria-pressed="true"><span class="choice-key">B</span>Use a composite index with the filter column first.</button>
+              <button class="choice-button" type="button" data-answer="c" aria-pressed="false"><span class="choice-key">C</span>Always use a full table scan for consistency.</button>
+              <button class="choice-button" type="button" data-answer="d" aria-pressed="false"><span class="choice-key">D</span>Use a covering index with all columns in the query.</button>
+            </div>
+            <div class="next-action">
+              <span>Next action</span>
+              <strong data-next-action>Review: composite index ordering</strong>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section class="principles" id="jak-dziala" aria-labelledby="principles-title">
-        <div class="section-heading">
-          <p class="eyebrow">JEDNA PĘTLA NAUKI</p>
-          <h2 id="principles-title">Bez udawanej gotowości. Z realnym następnym krokiem.</h2>
+      <section class="content-section section-shell" id="method" aria-labelledby="method-title">
+        <div class="section-intro reveal" data-reveal>
+          <p class="eyebrow">How Patternly works</p>
+          <h2 id="method-title">A mistake is useful when it changes what you practice next.</h2>
+          <p>Patternly keeps the explanation close to the decision, the mechanism, and the next bounded practice step.</p>
         </div>
-        <ol class="principle-grid">
-          <li><strong>01 · Rozpoznaj</strong><span>Ćwicz konkretny wzorzec, domenę lub mechanizm — nie przypadkową listę pytań.</span></li>
-          <li><strong>02 · Zdecyduj</strong><span>Odpowiedz, a potem zobacz Reason, Details i wyjaśnienie alternatyw.</span></li>
-          <li><strong>03 · Wróć</strong><span>Utrwalone błędy i powtórki prowadzą do kolejnej praktyki bez fikcyjnego wyniku mastery.</span></li>
-        </ol>
+        <div class="practice-steps">
+          <article class="practice-step reveal" data-reveal>
+            <div class="step-rail"><span>01</span></div>
+            <div class="step-content"><h3>Identify the decision</h3><p>Clarify the specific choice that led to the mistake.</p></div>
+          </article>
+          <article class="practice-step reveal reveal-delay-1" data-reveal>
+            <div class="step-rail"><span>02</span></div>
+            <div class="step-content"><h3>Understand the mechanism</h3><p>Connect the decision to the underlying database behavior.</p><div class="technical-note"><span>e.g.</span><span>Composite index column order determines whether the planner can avoid a full scan.</span></div></div>
+          </article>
+          <article class="practice-step reveal reveal-delay-2" data-reveal>
+            <div class="step-rail"><span>03</span></div>
+            <div class="step-content"><h3>Correct the relevant mistake</h3><p>Fix the immediate error with a precise technical adjustment.</p></div>
+          </article>
+          <article class="practice-step reveal reveal-delay-3" data-reveal>
+            <div class="step-rail"><span>04</span></div>
+            <div class="step-content"><h3>Take the next useful practice action</h3><p class="step-emphasis">Review due: repeated strategy error — composite index ordering</p></div>
+          </article>
+        </div>
       </section>
 
-      <section class="tracks" aria-labelledby="tracks-title">
-        <div class="section-heading">
-          <p class="eyebrow">DLA ROZMÓW I CERTYFIKACJI</p>
-          <h2 id="tracks-title">Wybierz obszar, który chcesz przećwiczyć teraz.</h2>
+      <section class="content-section session-section section-shell" id="session" aria-labelledby="session-title">
+        <div class="section-intro reveal" data-reveal>
+          <p class="eyebrow">Inside a session</p>
+          <h2 id="session-title">Practice the mechanism, not just the answer.</h2>
+          <p>Patternly keeps the question, your response, the explanation, and the next practice action in one focused flow — so every session builds on the decision you just made.</p>
         </div>
-        <ul>
-          <li>Coding Interview — DSA &amp; Problem Solving</li>
-          <li>Backend, Frontend i Object-Oriented Design</li>
-          <li>AWS SAA, Google Cloud ACE, Azure AZ-104 i AI-901</li>
-        </ul>
+        <div class="session-layout reveal reveal-delay" data-reveal>
+          <div class="session-panel" data-interactive-card data-state="resolved">
+            <div class="session-topbar"><span>03:42</span><span>Algorithms · Guided practice</span><span>2 of 8</span></div>
+            <div class="session-question">
+              <p class="question-label">Question</p>
+              <h3>You need to find all orders placed in the last 30 days for a specific customer. The orders table has a composite index on (customer_id, order_date). Which query structure uses the index most efficiently?</h3>
+            </div>
+            <div class="session-options" role="group" aria-label="Choose a query structure">
+              <button class="session-option" type="button" data-answer="a" aria-pressed="false"><span>A</span><strong>Filter by date range first, then by customer_id.</strong></button>
+              <button class="session-option is-correct" type="button" data-answer="b" aria-pressed="true"><span>B</span><strong>Filter by customer_id first, then by date range within that customer.</strong></button>
+              <button class="session-option" type="button" data-answer="c" aria-pressed="false"><span>C</span><strong>Use OR to combine customer_id and date range conditions.</strong></button>
+              <button class="session-option" type="button" data-answer="d" aria-pressed="false"><span>D</span><strong>Query all orders and filter in application code.</strong></button>
+            </div>
+            <div class="session-feedback" id="session-feedback" aria-live="polite">
+              <p class="question-label">Reason</p>
+              <p data-feedback-text>The composite index on (customer_id, order_date) follows leftmost-prefix ordering. Filtering by customer_id first lets the query use the full index to narrow both dimensions without a scan.</p>
+              <button class="details-button" type="button" aria-expanded="false">Details <span aria-hidden="true">＋</span></button>
+              <p class="details-copy" data-details-copy hidden>The useful transfer is simple: when a composite index is ordered by customer_id first, constrain that leading column before applying the order_date range.</p>
+            </div>
+            <div class="session-actions"><button class="button button-primary" type="button" data-next-question>Next question <span aria-hidden="true">→</span></button><span class="session-status">No countdown pressure</span></div>
+          </div>
+          <aside class="session-annotations" aria-label="Session principles">
+            <div><span class="annotation-index">01</span><p>Elapsed time — no countdown pressure</p></div>
+            <div><span class="annotation-index">02</span><p>Concise reason first; full explanation on demand</p></div>
+            <div><span class="annotation-index">03</span><p>Every response points to a useful next action</p></div>
+          </aside>
+        </div>
       </section>
 
-      <section class="pricing" id="ceny" aria-labelledby="pricing-title">
-        <div class="section-heading">
-          <p class="eyebrow">DOSTĘP</p>
-          <h2 id="pricing-title">Zacznij bezpłatnie. Wybierz Premium, gdy potrzebujesz pełnego zakresu.</h2>
-          <p>Podane ceny są cenami brutto w PLN. Zakup i automatyczne odnowienie zostaną uruchomione dopiero po skonfigurowaniu bezpiecznej płatności i dokumentów konsumenckich.</p>
+      <section class="content-section section-shell" aria-labelledby="evidence-title">
+        <div class="section-intro reveal" data-reveal>
+          <p class="eyebrow">How evidence drives next steps</p>
+          <h2 id="evidence-title">The next practice action should be explainable.</h2>
+          <p>Patternly turns recorded practice evidence into a clear, explainable next action — so every session builds on the decision you just made.</p>
         </div>
-        <div class="pricing-grid" id="dostep">
-          <article><p class="plan">Free</p><p class="price">0 zł</p><p>Zweryfikowany bezpłatny start w wybranej ścieżce.</p></article>
-          <article><p class="plan">Premium 30 dni</p><p class="price">49 zł</p><p>Jednorazowy dostęp Premium przez 30 dni.</p></article>
-          <article><p class="plan">Premium 90 dni</p><p class="price">119 zł</p><p>Jednorazowy dostęp Premium przez 90 dni.</p></article>
-          <article class="featured"><p class="plan">Premium roczny</p><p class="price">199 zł <span>/ rok</span></p><p>Automatycznie odnawiany dostęp Premium. Możesz anulować przed kolejnym okresem rozliczeniowym.</p></article>
+        <div class="evidence-layout reveal reveal-delay" data-reveal>
+          <article class="recommendation-panel">
+            <div class="evidence-visual" aria-hidden="true"><picture><source type="image/avif" srcset="assets/visuals/evidence-plate-640.avif 640w, assets/visuals/evidence-plate-960.avif 960w, assets/visuals/evidence-plate.avif 1254w" sizes="(max-width: 840px) 100vw, 62vw" /><source type="image/webp" srcset="assets/visuals/evidence-plate-640.webp 640w, assets/visuals/evidence-plate-960.webp 960w, assets/visuals/evidence-plate.webp 1254w" sizes="(max-width: 840px) 100vw, 62vw" /><img src="assets/visuals/evidence-plate.png" srcset="assets/visuals/evidence-plate-640.png 640w, assets/visuals/evidence-plate-960.png 960w, assets/visuals/evidence-plate.png 1254w" sizes="(max-width: 840px) 100vw, 62vw" alt="" width="1254" height="1254" loading="lazy" decoding="async" /></picture></div>
+            <div class="panel-kicker"><span class="status-dot" aria-hidden="true"></span> Recommendation</div>
+            <h3>Review due: repeated strategy error.</h3>
+            <p>A pattern of boundary errors was detected across your recent practice. Reviewing this area now will reinforce the correct approach before the pattern deepens.</p>
+            <div class="panel-actions"><a class="button button-primary" href="#session">Review this area</a><a class="text-link" href="#session">Continue guided practice <span aria-hidden="true">→</span></a></div>
+          </article>
+          <div class="evidence-list">
+            <p class="eyebrow">Supporting evidence</p>
+            <div class="evidence-row"><strong>Repeated error</strong><span>3 recent attempts contained the same boundary error.</span></div>
+            <div class="evidence-row"><strong>Last attempt</strong><span>Partial — correct approach, boundary missed.</span></div>
+            <div class="evidence-row"><strong>Focus area</strong><span>Continue with interval boundaries.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section tracks-section section-shell" id="tracks" aria-labelledby="tracks-title">
+        <div class="section-intro centered reveal" data-reveal>
+          <p class="eyebrow">Two families, one focus</p>
+          <h2 id="tracks-title">Two families. One focus: deliberate technical practice.</h2>
+        </div>
+        <div class="family-grid reveal reveal-delay" data-reveal>
+          <article class="family-card">
+            <div class="family-index">01</div>
+            <h3>Algorithms</h3>
+            <p>Mental units, pattern recognition, strategy selection, contrasts, ordering, and complexity reasoning.</p>
+            <ul><li>Learn approach</li><li>Guided practice</li><li>Recognize patterns</li><li>Contrast practice</li><li>Weak area review</li><li>Independent practice</li><li>Interview simulation</li></ul>
+            <a class="button button-primary" href="#product">Explore Algorithms <span aria-hidden="true">→</span></a>
+          </article>
+          <article class="family-card">
+            <div class="family-index">02</div>
+            <h3>Certification</h3>
+            <p>Scenario decisions, competency evidence, remediation, and profile-backed simulation where supported.</p>
+            <ul><li>Diagnostic baseline</li><li>Focus practice</li><li>Scenario practice</li><li>Weak area review</li><li>Mixed practice</li><li>Quick review</li><li>Exam simulation</li></ul>
+            <a class="button button-primary" href="#product">Explore Certification <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+        <p class="section-footnote reveal" data-reveal>Simulation behaviour depends on the applicable profile or family contract. Not every certification track includes an official simulation profile.</p>
+      </section>
+
+      <section class="boundaries-section section-shell" aria-labelledby="boundaries-title">
+        <div class="boundary-card reveal" data-reveal>
+          <div class="boundary-copy">
+            <p class="eyebrow">A clearer way to practice</p>
+            <h2 id="boundaries-title">Built for practice you can inspect.</h2>
+            <p>Patternly is a local, offline-first focus lab for technical decision practice. It records what happened, explains what matters, and makes the next action explicit.</p>
+          </div>
+          <div class="boundary-principles">
+            <p><strong>Evidence before certainty</strong><span>Show what the recorded attempts support and state when evidence is limited.</span></p>
+            <p><strong>Mechanism before motivation</strong><span>Connect feedback to the decision, constraint, invariant, or trade-off that matters.</span></p>
+            <p><strong>Practice before performance theatre</strong><span>No gamified status, synthetic readiness, or claims of official outcomes.</span></p>
+          </div>
+          <p class="boundary-note">Patternly does not replace an official exam, an online judge, or a source of guaranteed outcomes.</p>
+          <a class="button button-primary boundary-action" href="#method">Explore the practice loop <span aria-hidden="true">→</span></a>
         </div>
       </section>
     </main>
 
-    <footer>
-      <p>Patternly jest niezależnym narzędziem do nauki. Nie jest oficjalnym dostawcą certyfikacji ani gwarancją wyniku egzaminu.</p>
-      <p>Sprzedawca: Łukasz Kurczab. Zakup nie jest dostępny na tej stronie, dopóki nie zostaną opublikowane kompletne informacje konsumenckie oraz uruchomiona bezpieczna płatność.</p>
-      <a href="admin/">Wejście do panelu administratora</a>
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand"><div class="brand"><img src="assets/brand/mark/patternly-mark-mint.svg" alt="" width="24" height="24" /><span class="brand-wordmark">Patternly</span></div><p class="footer-tagline">Practice the decision. Inspect the why.</p><p class="footer-note">Built for deliberate technical practice.</p></div>
+        <div class="footer-explore"><p class="eyebrow">Explore</p><div><a href="#product">Product</a><a href="#method">Method</a><a href="#tracks">Tracks</a></div></div>
+      </div>
+      <div class="footer-meta"><p>Patternly is an independent learning tool. It is not an official certification provider or a guarantee of exam outcomes.</p><p>Seller: Łukasz Kurczab. Purchases are unavailable until consumer information and secure payment are published.</p><a href="admin/">Administrator entry</a></div>
     </footer>
+
+    <script src="script.js" defer></script>
   </body>
 </html>
