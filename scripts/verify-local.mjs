@@ -95,6 +95,8 @@ assert.match(sourceQuestions, /: "neutral"\}/u);
 assert.match(sourceQuestions, /Choose an answer to inspect the decision/u);
 assert.match(sourceQuestions, />Reset question <span aria-hidden="true">↺<\/span><\/button>/u);
 assert.doesNotMatch(sourceQuestions, /Next question/u);
+assert.match(sourceQuestions, /aria-controls="session-details" aria-expanded=\{detailsOpen\}/u);
+assert.match(sourceQuestions, /className="details-copy" id="session-details"/u);
 assert.match(sourceReveal, /element\.inert = true/u);
 assert.match(sourceReveal, /element\.inert = false/u);
 assert.match(sourceReveal, /function suppressFocusableDescendants/u);
@@ -106,6 +108,7 @@ assert.match(sourceReveal, /attributeFilter: \["disabled", "tabindex", "href", "
 assert.match(sourceReveal, /control\.getAttribute\("tabindex"\) !== "-1"/u);
 assert.match(sourcePublicPage, /Practice: composite index ordering\./u);
 assert.match(sourcePublicPage, /No timer — local demo/u);
+assert.match(sourcePublicPage, /It does not save attempts or calculate a review schedule; reset to retry the same question\./u);
 assert.match(sourcePublicPage, /className="button button-small button-primary nav-action" href="#session"/u);
 assert.match(sourcePublicPage, /compact-navigation/u);
 assert.doesNotMatch(sourcePublicPage, /Elapsed time/u);
@@ -126,6 +129,11 @@ assert.match(sourceAdminPage, /Wróć na stronę główną/u);
 assert.match(sourceAdminPage, /ariaLabel="Patternly — strona główna"/u);
 assert.doesNotMatch(sourcePublicPage, />Open Patternly</u);
 assert.match(sourceStyles, /scroll-margin-top: 88px/u);
+assert.doesNotMatch(sourcePublicPage, /data-page-progress|page-progress/u);
+assert.doesNotMatch(sourceStyles, /\.page-progress/u);
+assert.match(sourceStyles, /--section-space: clamp\(5\.5rem, 7vw, 6\.5rem\)/u);
+assert.match(sourceStyles, /\.session-layout \{[^}]*margin-top: 36px/u);
+assert.match(sourceStyles, /\.family-card \.button \{ width: 100%; \}/u);
 assert.match(sourceStyles, /@media \(max-width: 840px\)[\s\S]*\.nav-menu-toggle \{ display: inline-flex/u);
 
 const distHtml = await readFile(resolve(root, "dist/index.html"), "utf8");

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Brand } from "../components/Brand";
 import { DecisionField } from "../components/DecisionField";
 import { HeroQuestionCard, SessionQuestionCard } from "../components/InteractiveQuestion";
@@ -133,7 +133,7 @@ function SessionSection() {
       <Reveal className="section-intro">
         <p className="eyebrow">Inside a session</p>
         <h2 id="session-title">Practice the mechanism, not just the answer.</h2>
-        <p>Patternly keeps the question, your response, the explanation, and the next practice action in one focused flow — so every session builds on the decision you just made.</p>
+        <p>This local demo keeps your response and its reason in one focused flow. It does not save attempts or calculate a review schedule; reset to retry the same question.</p>
       </Reveal>
       <Reveal className="session-layout reveal-delay">
         <SessionQuestionCard />
@@ -213,33 +213,9 @@ function Footer() {
 }
 
 export function PublicPage() {
-  useEffect(() => {
-    const progress = document.querySelector("[data-page-progress]");
-    if (!progress) return undefined;
-    let frame = 0;
-    const update = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-        const ratio = scrollable > 0 ? window.scrollY / scrollable : 0;
-        progress.style.transform = `scaleY(${Math.min(1, Math.max(0, ratio))})`;
-        frame = 0;
-      });
-    };
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <div className="page-progress" aria-hidden="true"><span data-page-progress /></div>
       <Header />
       <main id="main-content" tabIndex={-1}><Hero /><MethodSection /><SessionSection /><EvidenceSection /><TracksSection /><BoundariesSection /></main>
       <Footer />

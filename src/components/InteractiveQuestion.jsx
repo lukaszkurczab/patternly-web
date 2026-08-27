@@ -97,10 +97,10 @@ export function SessionQuestionCard() {
       <div className="session-feedback" id="session-feedback" aria-live="polite">
         <p className="question-label">Reason</p>
         <p>{selected ? (correct ? feedback.correct : feedback.incorrect) : feedback.empty}</p>
-        <button className="details-button" type="button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>
+        <button className="details-button" type="button" aria-controls="session-details" aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>
           Details <span aria-hidden="true">{detailsOpen ? "－" : "＋"}</span>
         </button>
-        {detailsOpen && <p className="details-copy">The useful transfer is simple: when a composite index is ordered by customer_id first, constrain that leading column before applying the order_date range.</p>}
+        {detailsOpen && <p className="details-copy" id="session-details">The useful transfer is simple: when a composite index is ordered by customer_id first, constrain that leading column before applying the order_date range.</p>}
       </div>
       <div className="session-actions">
         <button className="button button-primary" type="button" onClick={reset}>Reset question <span aria-hidden="true">↺</span></button>
