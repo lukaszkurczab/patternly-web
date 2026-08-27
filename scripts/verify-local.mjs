@@ -131,6 +131,7 @@ assert.doesNotMatch(sourcePublicPage, />Open Patternly</u);
 assert.match(sourceStyles, /scroll-margin-top: 88px/u);
 assert.doesNotMatch(sourcePublicPage, /data-page-progress|page-progress/u);
 assert.doesNotMatch(sourceStyles, /\.page-progress/u);
+assert.match(sourceStyles, /--text-muted: #9aa8bb;/u);
 assert.match(sourceStyles, /--section-space: clamp\(5\.5rem, 7vw, 6\.5rem\)/u);
 assert.match(sourceStyles, /\.session-layout \{[^}]*margin-top: 36px/u);
 assert.match(sourceStyles, /\.family-card \.button \{ width: 100%; \}/u);
