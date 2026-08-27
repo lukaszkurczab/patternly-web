@@ -1,22 +1,52 @@
 # Patternly Web
 
-Public, static-facing surface for Patternly. The homepage follows the current
-Figma handoff: product surface, practice method, an inspectable session,
-evidence-led next steps, track families, brand boundaries, and the administrator
-entry point. It does not expose a purchase action.
+React/Vite surface for Patternly. The homepage follows the current Figma
+handoff: product surface, practice method, an inspectable session, evidence-led
+next steps, track families, brand boundaries, and the administrator entry point.
+It does not expose a purchase action.
 
-Visual assets live under `assets/`: the canonical Patternly marks and the
-generated `decision-field.png` / `evidence-plate.png` material studies used for
-the hero and evidence surfaces.
+The page uses React components for the public experience and `/admin`, with the
+existing visual system kept in `styles.css`. The hero decision field is rendered
+locally on a canvas, so the development surface does not depend on a CDN or on
+missing image fallbacks.
 
-The hero uses a pinned Three.js ES module from jsDelivr for the live WebGL
-decision field. The local PNG remains an explicit visual fallback for browsers
-without WebGL and for reduced-motion preferences.
+Vite builds two thin HTML entry documents—`index.html` for `/` and `admin.html`
+for the canonical `/admin` route—that both load `src/main.jsx`. The Vite dev and
+preview servers redirect `/admin/` and `/admin.html` to `/admin`, so those paths
+are not separate administrator routes. The administrator entry carries static
+`noindex,nofollow` metadata in the direct HTTP response; the public entry has no
+global robots exclusion.
 
-## Local preview
+## Local development
 
-Open `index.html` directly in a browser, or serve this repository with any
-static HTTP server.
+Requirements: Node.js 20.19 or newer.
+
+```sh
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). The administrator surface
+is available at [http://localhost:5173/admin](http://localhost:5173/admin).
+
+For a production-shaped local check:
+
+```sh
+npm run build
+npm run preview
+```
+
+The local verifier builds first, checks direct requests to `/`, `/admin`,
+`/admin/`, and `/admin.html`, and validates the explicitly unavailable admin
+configuration without contacting external services:
+
+```sh
+npm run verify:local
+```
+
+The verifier does not claim React browser rendering, viewport behavior, visual
+quality, or accessibility conformance. Those remain unverified because this
+workspace has no safe local DOM/a11y harness in the existing dependency set.
 
 ## Production boundary
 

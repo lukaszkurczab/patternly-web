@@ -1,0 +1,23 @@
+{
+  "name": "patternly-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite --host localhost",
+    "build": "vite build",
+    "preview": "vite preview --host localhost",
+    "verify:local": "npm run build && node scripts/verify-local.mjs"
+  },
+  "dependencies": {
+    "firebase": "12.17.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "vite": "^6.4.3"
+  }
+}
