@@ -1,146 +1,59 @@
-import { useEffect, useRef } from "react";
+const captions = {
+  neutral: "Map the decision",
+  focused: "Inspect the constraint",
+  resolved: "Useful path resolved",
+};
 
-const nodePositions = [
-  [-0.54, 0.05],
-  [-0.22, -0.26],
-  [0.06, 0.02],
-  [0.38, 0.24],
-  [0.74, 0.7],
-  [0.74, -0.72],
-  [-0.64, 0.66],
-  [-0.78, -0.78],
-];
-
-const tracePaths = [
-  [[-0.88, -0.12], [-0.54, 0.05], [-0.22, -0.26], [0.06, 0.02], [0.38, 0.24], [0.92, 0.02]],
-  [[-0.64, 0.66], [-0.34, 0.38], [-0.22, -0.26], [0.12, -0.62], [0.74, -0.72]],
-  [[-0.78, -0.78], [-0.34, -0.48], [-0.22, -0.26], [0.12, 0.1], [0.74, 0.7]],
-  [[-0.02, 0.9], [0.02, 0.42], [0.06, 0.02], [0.46, -0.22], [0.9, -0.34]],
-];
-
-function drawPath(context, path, width, height, offset = 0) {
-  context.beginPath();
-  path.forEach(([x, y], index) => {
-    const pointX = width * (x * 0.5 + 0.5);
-    const pointY = height * (y * -0.5 + 0.5) + offset;
-    if (index === 0) context.moveTo(pointX, pointY);
-    else context.lineTo(pointX, pointY);
-  });
-  context.stroke();
-}
-
-export function DecisionField() {
-  const fieldRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const field = fieldRef.current;
-    const canvas = canvasRef.current;
-    if (!field || !canvas) return undefined;
-
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      field.dataset.renderState = "fallback";
-      return undefined;
-    }
-
-    let animationFrame = 0;
-    let fieldVisible = true;
-    let pageVisible = document.visibilityState === "visible";
-    let width = 0;
-    let height = 0;
-
-    const resize = () => {
-      const bounds = field.getBoundingClientRect();
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
-      width = Math.max(1, bounds.width);
-      height = Math.max(1, bounds.height);
-      canvas.width = Math.floor(width * pixelRatio);
-      canvas.height = Math.floor(height * pixelRatio);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    };
-
-    const render = (time) => {
-      animationFrame = 0;
-      if (!fieldVisible || !pageVisible) return;
-
-      const seconds = time * 0.001;
-      context.clearRect(0, 0, width, height);
-
-      const background = context.createRadialGradient(width * 0.72, height * 0.42, 0, width * 0.72, height * 0.42, Math.max(width, height) * 0.82);
-      background.addColorStop(0, "rgba(28, 104, 116, 0.42)");
-      background.addColorStop(0.44, "rgba(12, 52, 76, 0.24)");
-      background.addColorStop(1, "rgba(8, 19, 40, 0)");
-      context.fillStyle = background;
-      context.fillRect(0, 0, width, height);
-
-      context.lineWidth = 1;
-      tracePaths.forEach((path, index) => {
-        context.strokeStyle = index === 0 ? "rgba(94, 234, 212, 0.46)" : "rgba(94, 234, 212, 0.22)";
-        context.globalAlpha = 0.72;
-        drawPath(context, path, width, height, Math.sin(seconds * 0.2 + index) * height * 0.012);
-      });
-
-      nodePositions.forEach(([x, y], index) => {
-        const pointX = width * (x * 0.5 + 0.5);
-        const pointY = height * (y * -0.5 + 0.5);
-        const isCenter = index === 2;
-        const pulse = isCenter ? 1 + Math.sin(seconds * 2.4) * 0.18 : 1;
-        context.globalAlpha = isCenter ? 0.95 : 0.72;
-        context.fillStyle = isCenter ? "#20c997" : "#5eead4";
-        context.beginPath();
-        context.arc(pointX, pointY, (isCenter ? 5 : 3) * pulse, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = isCenter ? "rgba(32, 201, 151, 0.24)" : "rgba(94, 234, 212, 0.18)";
-        context.lineWidth = 1;
-        context.beginPath();
-        context.arc(pointX, pointY, (isCenter ? 18 : 10) * pulse, 0, Math.PI * 2);
-        context.stroke();
-      });
-
-      context.globalAlpha = 1;
-      if (!reducedMotion) animationFrame = requestAnimationFrame(render);
-    };
-
-    const startRendering = () => {
-      if (!animationFrame && fieldVisible && pageVisible && !reducedMotion) {
-        animationFrame = requestAnimationFrame(render);
-      }
-    };
-    const handleVisibility = () => {
-      pageVisible = document.visibilityState === "visible";
-      if (pageVisible) startRendering();
-    };
-    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(resize) : null;
-    const intersectionObserver = "IntersectionObserver" in window
-      ? new IntersectionObserver(([entry]) => {
-          fieldVisible = Boolean(entry?.isIntersecting);
-          if (fieldVisible) startRendering();
-        }, { threshold: 0.01 })
-      : null;
-
-    resize();
-    field.dataset.renderState = reducedMotion ? "reduced-motion" : "live";
-    field.classList.toggle("is-live", !reducedMotion);
-    resizeObserver?.observe(field);
-    intersectionObserver?.observe(field);
-    document.addEventListener("visibilitychange", handleVisibility);
-    render(0);
-
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      resizeObserver?.disconnect();
-      intersectionObserver?.disconnect();
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, []);
-
+export function DecisionField({ state = "neutral" }) {
   return (
-    <div ref={fieldRef} className="hero-field" aria-hidden="true">
-      <canvas ref={canvasRef} className="decision-canvas" />
+    <div className="decision-instrument" data-state={state} aria-hidden="true">
+      <svg className="decision-field-svg" viewBox="0 0 720 650" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <pattern id="decision-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+            <path className="decision-grid-line" d="M 32 0 L 0 0 0 32" />
+          </pattern>
+          <linearGradient id="decision-mint-route" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#5eead4" stopOpacity=".28" />
+            <stop offset=".54" stopColor="#5eead4" />
+            <stop offset="1" stopColor="#a7f3e7" stopOpacity=".72" />
+          </linearGradient>
+        </defs>
+
+        <rect className="decision-grid" width="720" height="650" fill="url(#decision-grid)" />
+        <path className="decision-route decision-route-quiet" d="M88 92 C142 174 74 244 118 318 S250 430 510 578" pathLength="1" />
+        <path className="decision-route decision-route-quiet" d="M150 90 C266 148 252 248 372 296 S534 374 586 574" pathLength="1" />
+        <path className="decision-route decision-route-inspect" d="M150 90 C214 92 246 72 298 64 S420 72 496 106 C544 128 566 176 568 224" pathLength="1" />
+        <path className="decision-route decision-route-resolved" d="M150 90 C214 92 246 72 298 64 S420 72 496 106 C598 152 654 242 630 358 S566 474 566 574" pathLength="1" />
+
+        <rect className="decision-boundary" x="62" y="126" width="596" height="388" rx="20" />
+        <path className="decision-boundary-corner" d="M62 174 V146 Q62 126 82 126 H110 M610 514 H638 Q658 514 658 494 V466" />
+
+        <g className="decision-module decision-module-input" transform="translate(34 66)">
+          <rect width="124" height="48" rx="10" />
+          <path d="M18 17h12M18 24h20M18 31h15" />
+          <text x="49" y="29">DECISION</text>
+        </g>
+        <g className="decision-module decision-module-constraint" transform="translate(292 40)">
+          <rect width="142" height="48" rx="10" />
+          <path d="M18 16v17M27 16v17M18 24h9" />
+          <text x="46" y="29">CONSTRAINT</text>
+        </g>
+        <g className="decision-module decision-module-mechanism" transform="translate(520 82)">
+          <rect width="164" height="48" rx="10" />
+          <path d="M17 18l8 6-8 6M31 30h9" />
+          <text x="52" y="29">MECHANISM</text>
+        </g>
+        <g className="decision-module decision-module-action" transform="translate(492 550)">
+          <rect width="192" height="48" rx="10" />
+          <path d="M18 24h18M29 17l7 7-7 7" />
+          <text x="52" y="29">NEXT ACTION</text>
+        </g>
+
+        <rect className="decision-marker decision-marker-a" x="104" y="309" width="10" height="10" rx="2" />
+        <rect className="decision-marker decision-marker-b" x="363" y="291" width="10" height="10" rx="2" />
+        <rect className="decision-marker decision-marker-c" x="625" y="353" width="10" height="10" rx="2" />
+      </svg>
+      <span className="decision-instrument-caption">{captions[state]}</span>
     </div>
   );
 }

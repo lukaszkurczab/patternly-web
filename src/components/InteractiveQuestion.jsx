@@ -47,8 +47,7 @@ function AnswerOption({ answer, label, name, selected, correct, session, onSelec
   );
 }
 
-export function HeroQuestionCard() {
-  const [selected, setSelected] = useState("");
+export function HeroQuestionCard({ selected, onSelect }) {
   const correct = selected === "b";
 
   return (
@@ -61,10 +60,10 @@ export function HeroQuestionCard() {
       <h2>Which approach avoids a full table scan on a composite index?</h2>
       <div className="choice-stack" role="radiogroup" aria-label="Choose an answer">
         {heroAnswers.map(([answer, label]) => (
-          <AnswerOption key={answer} answer={answer} label={label} name="hero-answer" selected={selected === answer} correct={correct} onSelect={setSelected} />
+          <AnswerOption key={answer} answer={answer} label={label} name="hero-answer" selected={selected === answer} correct={correct} onSelect={onSelect} />
         ))}
       </div>
-      <div className="next-action">
+      <div className="next-action" aria-live="polite">
         <span>Next action</span>
         <strong>{selected ? (correct ? "Review: composite index ordering" : "Inspect: leftmost-prefix ordering") : "Choose an answer to inspect the decision"}</strong>
       </div>

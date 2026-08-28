@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createServer } from "vite";
 import { ADMIN_UNAVAILABLE_MESSAGE, getAdminConfigurationError } from "../src/adminConfig.js";
 import { buildAdminReportView } from "../src/adminReportView.js";
 import { ADMIN_ROUTE_PATH, ADMIN_ROUTE_REDIRECT_PATHS, isCanonicalAdminPath } from "../src/adminRoute.js";
@@ -68,6 +71,7 @@ const sourceApp = await readFile(resolve(root, "src/App.jsx"), "utf8");
 const sourcePublicPage = await readFile(resolve(root, "src/pages/PublicPage.jsx"), "utf8");
 const sourceAdminPage = await readFile(resolve(root, "src/pages/AdminPage.jsx"), "utf8");
 const sourceQuestions = await readFile(resolve(root, "src/components/InteractiveQuestion.jsx"), "utf8");
+const sourceDecisionField = await readFile(resolve(root, "src/components/DecisionField.jsx"), "utf8");
 const sourceStyles = await readFile(resolve(root, "styles.css"), "utf8");
 const sourceReveal = await readFile(resolve(root, "src/hooks/useReveal.jsx"), "utf8");
 assert.match(sourceHtml, /<div id="root"><\/div>/u);
@@ -97,6 +101,10 @@ assert.match(sourceQuestions, />Reset question <span aria-hidden="true">↺<\/sp
 assert.doesNotMatch(sourceQuestions, /Next question/u);
 assert.match(sourceQuestions, /aria-controls="session-details" aria-expanded=\{detailsOpen\}/u);
 assert.match(sourceQuestions, /className="details-copy" id="session-details"/u);
+assert.match(sourceDecisionField, /data-state=\{state\}/u);
+assert.match(sourceDecisionField, /className="decision-route decision-route-resolved"/u);
+assert.match(sourceDecisionField, /className="decision-module decision-module-action"/u);
+assert.doesNotMatch(sourceDecisionField, /<canvas|requestAnimationFrame|ResizeObserver/u);
 assert.match(sourceReveal, /element\.inert = true/u);
 assert.match(sourceReveal, /element\.inert = false/u);
 assert.match(sourceReveal, /function suppressFocusableDescendants/u);
@@ -116,9 +124,23 @@ assert.match(sourcePublicPage, /href="#session">Open the SQL question<\/a>/u);
 assert.match(sourcePublicPage, /It shows the current response, explains what matters, and makes the next action explicit\./u);
 assert.match(sourcePublicPage, /Show what the current response supports and state when evidence is limited\./u);
 assert.doesNotMatch(sourcePublicPage, /It records what happened|recorded attempts/u);
-assert.match(sourcePublicPage, /href="#method">See the practice method <span aria-hidden="true">→<\/span><\/a>/u);
-assert.match(sourcePublicPage, /href="#session">Try the local demo <span aria-hidden="true">→<\/span><\/a>/u);
+assert.match(sourcePublicPage, /href="#method">See the practice loop <span aria-hidden="true">→<\/span><\/a>/u);
+assert.match(sourcePublicPage, /href="#session">Try the local practice demo <span aria-hidden="true">→<\/span><\/a>/u);
 assert.doesNotMatch(sourcePublicPage, /href="#product">Explore (Algorithms|Certification)/u);
+assert.doesNotMatch(sourcePublicPage, /Two families|family-card|family-grid/u);
+for (const trackName of [
+  "Coding Interview: DSA & Problem Solving",
+  "Backend System Design Interview",
+  "Object-Oriented Design Interview",
+  "Frontend System Design Interview",
+  "Google Cloud Associate Cloud Engineer",
+  "AWS Certified Solutions Architect – Associate",
+  "Microsoft Azure Administrator Associate (AZ-104)",
+  "Microsoft Azure AI Fundamentals (AI-901)",
+]) {
+  assert.ok(sourcePublicPage.includes(trackName), `Missing canonical launch track: ${trackName}`);
+}
+assert.equal((sourcePublicPage.match(/glyph: /gu) || []).length, 8, "The public catalogue must expose exactly eight canonical launch tracks.");
 assert.doesNotMatch(sourcePublicPage, /boundary errors|Review due: repeated strategy error|Continue guided practice/u);
 assert.match(sourceAdminPage, /initializationState === "loading"/u);
 assert.match(sourceAdminPage, /initializationState === "ready"/u);
@@ -132,10 +154,26 @@ assert.match(sourceStyles, /scroll-margin-top: 88px/u);
 assert.doesNotMatch(sourcePublicPage, /data-page-progress|page-progress/u);
 assert.doesNotMatch(sourceStyles, /\.page-progress/u);
 assert.match(sourceStyles, /--text-muted: #9aa8bb;/u);
-assert.match(sourceStyles, /--section-space: clamp\(5\.5rem, 7vw, 6\.5rem\)/u);
-assert.match(sourceStyles, /\.session-layout \{[^}]*margin-top: 36px/u);
-assert.match(sourceStyles, /\.family-card \.button \{ width: 100%; \}/u);
+assert.match(sourceStyles, /--section-space: clamp\(6rem, 8vw, 8rem\)/u);
+assert.match(sourceStyles, /\.session-layout \{[^}]*margin-top: 44px/u);
+assert.match(sourceStyles, /\.track-atlas \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/u);
+assert.match(sourceStyles, /@media \(max-width: 620px\)[\s\S]*\.track-atlas \{ grid-template-columns: 1fr; \}/u);
+assert.match(sourceStyles, /@media \(prefers-reduced-motion: reduce\)/u);
+assert.doesNotMatch(sourceStyles, /animation(?:-iteration-count)?:\s*[^;}]*(?:infinite)/u);
 assert.match(sourceStyles, /@media \(max-width: 840px\)[\s\S]*\.nav-menu-toggle \{ display: inline-flex/u);
+assert.match(sourceStyles, /@media \(max-width: 480px\)[\s\S]*\.nav-action \{ display: none; \}/u);
+assert.equal((sourceStyles.match(/@font-face/gu) || []).length, 4, "Only Latin and Latin Extended font faces should ship.");
+assert.doesNotMatch(sourceStyles, /cyrillic|greek|vietnamese/u);
+
+const moduleServer = await createServer({ root, appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+try {
+  const { PublicPage } = await moduleServer.ssrLoadModule("/src/pages/PublicPage.jsx");
+  const renderedPublicPage = renderToStaticMarkup(createElement(PublicPage));
+  assert.match(renderedPublicPage, /Practice the/u, "The public React tree must render without an undefined runtime dependency.");
+  assert.match(renderedPublicPage, /decision-instrument/u, "The rendered public tree must include the decision instrument.");
+} finally {
+  await moduleServer.close();
+}
 
 const distHtml = await readFile(resolve(root, "dist/index.html"), "utf8");
 const distAdminHtml = await readFile(resolve(root, "dist/admin.html"), "utf8");

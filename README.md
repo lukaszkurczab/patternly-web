@@ -6,9 +6,10 @@ next steps, track families, brand boundaries, and the administrator entry point.
 It does not expose a purchase action.
 
 The page uses React components for the public experience and `/admin`, with the
-existing visual system kept in `styles.css`. The hero decision field is rendered
-locally on a canvas, so the development surface does not depend on a CDN or on
-missing image fallbacks.
+visual system kept in `styles.css`. The hero decision instrument is an inline
+SVG whose neutral, inspect, and resolved paths follow the local question state.
+It has no continuous rendering loop and no raster or CDN dependency. Manrope
+and IBM Plex Sans are bundled locally through Fontsource.
 
 Vite builds two thin HTML entry documents—`index.html` for `/` and `admin.html`
 for the canonical `/admin` route—that both load `src/main.jsx`. The Vite dev and
@@ -44,9 +45,10 @@ configuration without contacting external services:
 npm run verify:local
 ```
 
-The verifier does not claim React browser rendering, viewport behavior, visual
-quality, or accessibility conformance. Those remain unverified because this
-workspace has no safe local DOM/a11y harness in the existing dependency set.
+The verifier also renders the public React tree through Vite's SSR transform,
+which catches undefined render-time dependencies that a production build alone
+does not detect. It does not claim browser layout, viewport behavior, visual
+quality, or complete accessibility conformance; those still require browser QA.
 
 ## Production boundary
 

@@ -1,8 +1,27 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brand } from "../components/Brand";
 import { DecisionField } from "../components/DecisionField";
 import { HeroQuestionCard, SessionQuestionCard } from "../components/InteractiveQuestion";
 import { Reveal } from "../hooks/useReveal";
+
+const tracks = [
+  { name: "Coding Interview: DSA & Problem Solving", focus: "Patterns · strategy · complexity", glyph: "branch" },
+  { name: "Backend System Design Interview", focus: "Boundaries · trade-offs · architecture", glyph: "system" },
+  { name: "Object-Oriented Design Interview", focus: "Models · responsibilities · invariants", glyph: "objects" },
+  { name: "Frontend System Design Interview", focus: "State · performance · delivery", glyph: "interface" },
+  { name: "Google Cloud Associate Cloud Engineer", focus: "Scenario decisions · operations", glyph: "cloud-a" },
+  { name: "AWS Certified Solutions Architect – Associate", focus: "Architecture choices · trade-offs", glyph: "cloud-b" },
+  { name: "Microsoft Azure Administrator Associate (AZ-104)", focus: "Configuration · diagnosis · operations", glyph: "cloud-c" },
+  { name: "Microsoft Azure AI Fundamentals (AI-901)", focus: "Concept recognition · scenario fit", glyph: "ai" },
+];
+
+function TrackGlyph({ variant }) {
+  return (
+    <span className={`track-glyph track-glyph-${variant}`} aria-hidden="true">
+      <span /><span /><span /><span />
+    </span>
+  );
+}
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,28 +79,14 @@ function Header() {
 }
 
 function Hero() {
-  const heroRef = useRef(null);
-
-  const handlePointerMove = (event) => {
-    const hero = event.currentTarget;
-    const bounds = hero.getBoundingClientRect();
-    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
-    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
-    hero.style.setProperty("--field-x", `${x * -18}px`);
-    hero.style.setProperty("--field-y", `${y * -10}px`);
-  };
-
-  const handlePointerLeave = () => {
-    heroRef.current?.style.setProperty("--field-x", "0px");
-    heroRef.current?.style.setProperty("--field-y", "0px");
-  };
+  const [selected, setSelected] = useState("");
+  const decisionState = selected ? (selected === "b" ? "resolved" : "focused") : "neutral";
 
   return (
-    <section ref={heroRef} className="hero section-shell" id="product" aria-labelledby="hero-title" onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}>
-      <DecisionField />
+    <section className="hero section-shell" id="product" aria-labelledby="hero-title">
       <Reveal className="hero-copy">
         <p className="eyebrow">Technical practice, reimagined</p>
-        <h1 id="hero-title">Practice the decision behind the answer.</h1>
+        <h1 id="hero-title">Practice the <span className="thesis-focus">decision</span> behind the answer.</h1>
         <p className="hero-description">Patternly turns technical mistakes into a concrete next practice action.</p>
         <div className="hero-actions">
           <a className="button button-primary" href="#method">Explore the practice loop <span aria-hidden="true">→</span></a>
@@ -90,12 +95,8 @@ function Hero() {
         <p className="hero-note"><span className="status-dot" aria-hidden="true" /> Local, offline-first practice for technical decisions.</p>
       </Reveal>
       <Reveal className="hero-stage reveal-delay">
-        <div className="trace-graphic" aria-hidden="true">
-          <span className="trace-line trace-line-one" /><span className="trace-line trace-line-two" /><span className="trace-line trace-line-three" /><span className="trace-line trace-line-four" />
-          <span className="trace-node trace-node-one" /><span className="trace-node trace-node-two" /><span className="trace-node trace-node-three" /><span className="trace-node trace-node-four" /><span className="trace-node trace-node-five" />
-        </div>
-        <p className="trace-label">Decision trace / 01</p>
-        <HeroQuestionCard />
+        <DecisionField state={decisionState} />
+        <HeroQuestionCard selected={selected} onSelect={setSelected} />
       </Reveal>
     </section>
   );
@@ -178,14 +179,19 @@ function TracksSection() {
   return (
     <section className="content-section tracks-section section-shell" id="tracks" aria-labelledby="tracks-title">
       <Reveal className="section-intro centered">
-        <p className="eyebrow">Two families, one focus</p>
-        <h2 id="tracks-title">Two families. One focus: deliberate technical practice.</h2>
+        <p className="eyebrow">Launch catalogue</p>
+        <h2 id="tracks-title">Eight tracks. One practice model.</h2>
+        <p>Each track changes the decisions and evidence that matter. The learning loop stays precise and consistent.</p>
       </Reveal>
-      <Reveal className="family-grid reveal-delay">
-        <article className="family-card"><div className="family-index">01</div><h3>Algorithms</h3><p>Mental units, pattern recognition, strategy selection, contrasts, ordering, and complexity reasoning.</p><ul><li>Learn approach</li><li>Guided practice</li><li>Recognize patterns</li><li>Contrast practice</li><li>Weak area review</li><li>Independent practice</li><li>Interview simulation</li></ul><a className="button button-primary" href="#method">See the practice method <span aria-hidden="true">→</span></a></article>
-        <article className="family-card"><div className="family-index">02</div><h3>Certification</h3><p>Scenario decisions, competency evidence, remediation, and profile-backed simulation where supported.</p><ul><li>Diagnostic baseline</li><li>Focus practice</li><li>Scenario practice</li><li>Weak area review</li><li>Mixed practice</li><li>Quick review</li><li>Exam simulation</li></ul><a className="button button-primary" href="#session">Try the local demo <span aria-hidden="true">→</span></a></article>
+      <Reveal className="track-atlas reveal-delay">
+        {tracks.map((track) => (
+          <article className="track-card" key={track.name}>
+            <TrackGlyph variant={track.glyph} />
+            <div><h3>{track.name}</h3><p>{track.focus}</p></div>
+          </article>
+        ))}
       </Reveal>
-      <Reveal className="section-footnote">Simulation behaviour depends on the applicable profile or family contract. Not every certification track includes an official simulation profile.</Reveal>
+      <Reveal className="track-atlas-action"><a className="button button-secondary" href="#method">See the shared practice loop <span aria-hidden="true">→</span></a></Reveal>
     </section>
   );
 }
