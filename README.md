@@ -64,7 +64,3 @@ The public page identifies the seller as Łukasz Kurczab and does not offer a
 purchase action. Before a sales launch it still needs the seller's publishable
 contact address, complete consumer documents, public origins, and a payment
 integration.
-
-## Repair record
-
-[Issue list, execution plan and resume instructions](docs/web-repair-plan.md).
