@@ -71,11 +71,16 @@ const sourceApp = await readFile(resolve(root, "src/App.jsx"), "utf8");
 const sourcePublicPage = await readFile(resolve(root, "src/pages/PublicPage.jsx"), "utf8");
 const sourceAdminPage = await readFile(resolve(root, "src/pages/AdminPage.jsx"), "utf8");
 const sourceQuestions = await readFile(resolve(root, "src/components/InteractiveQuestion.jsx"), "utf8");
-const sourceDecisionField = await readFile(resolve(root, "src/components/DecisionField.jsx"), "utf8");
 const sourceStyles = await readFile(resolve(root, "styles.css"), "utf8");
 const sourceReveal = await readFile(resolve(root, "src/hooks/useReveal.jsx"), "utf8");
+const trackIconNames = ["route", "database", "grid", "device-phone", "server-stack", "cloud", "settings", "cpu"];
+const trackIconSources = await Promise.all(trackIconNames.map(async (iconName) => [
+  iconName,
+  await readFile(resolve(root, `assets/icons/${iconName}.svg`), "utf8"),
+]));
 assert.match(sourceHtml, /<div id="root"><\/div>/u);
 assert.match(sourceHtml, /src="\/src\/main\.jsx"/u);
+assert.match(sourceHtml, /<title>Patternly — Build confidence through practice<\/title>/u);
 assert.doesNotMatch(sourceHtml, /<script(?![^>]*type="module")[^>]*src=/u);
 assert.doesNotMatch(sourceHtml, /<meta\b[^>]*name=["']robots["']/iu);
 assert.match(sourceAdminHtml, /<div id="root"><\/div>/u);
@@ -88,6 +93,7 @@ assert.equal(isCanonicalAdminPath("/admin/"), false);
 assert.equal(isCanonicalAdminPath("/admin.html"), false);
 assert.match(sourceApp, /isCanonicalAdminPath\(window\.location\.pathname\)/u);
 assert.doesNotMatch(sourceApp, /startsWith\(["']\/admin\//u);
+assert.match(sourceApp, /document\.title = admin \? "Patternly — Administracja" : "Patternly — Build confidence through practice"/u);
 assert.match(sourcePublicPage, /<main id="main-content" tabIndex=\{-1\}>/u);
 assert.match(sourceAdminPage, /<a className="skip-link" href="#main-content">/u);
 assert.match(sourceAdminPage, /<main id="main-content" className="section-shell" tabIndex=\{-1\}/u);
@@ -95,16 +101,10 @@ assert.match(sourceQuestions, /type="radio"/u);
 assert.match(sourceQuestions, /role="radiogroup"/u);
 assert.doesNotMatch(sourceQuestions, /aria-pressed/u);
 assert.match(sourceQuestions, /const \[selected, setSelected\] = useState\(""\);/u);
-assert.match(sourceQuestions, /: "neutral"\}/u);
-assert.match(sourceQuestions, /Choose an answer to inspect the decision/u);
-assert.match(sourceQuestions, />Reset question <span aria-hidden="true">↺<\/span><\/button>/u);
 assert.doesNotMatch(sourceQuestions, /Next question/u);
-assert.match(sourceQuestions, /aria-controls="session-details" aria-expanded=\{detailsOpen\}/u);
-assert.match(sourceQuestions, /className="details-copy" id="session-details"/u);
-assert.match(sourceDecisionField, /data-state=\{state\}/u);
-assert.match(sourceDecisionField, /className="decision-route decision-route-resolved"/u);
-assert.match(sourceDecisionField, /className="decision-module decision-module-action"/u);
-assert.doesNotMatch(sourceDecisionField, /<canvas|requestAnimationFrame|ResizeObserver/u);
+assert.match(sourceQuestions, /onClick=\{reset\}/u);
+assert.doesNotMatch(sourcePublicPage + sourceStyles, /TrackGlyph|track-glyph/u);
+assert.doesNotMatch(sourcePublicPage + sourceQuestions + sourceStyles, /HeroQuestionCard|SessionQuestionCard|DecisionField|decision-instrument|hero-stage|session-layout/u);
 assert.match(sourceReveal, /element\.inert = true/u);
 assert.match(sourceReveal, /element\.inert = false/u);
 assert.match(sourceReveal, /function suppressFocusableDescendants/u);
@@ -114,20 +114,13 @@ assert.match(sourceReveal, /if \(tabIndex === "-1"\) return;/u);
 assert.match(sourceReveal, /attributes: true/u);
 assert.match(sourceReveal, /attributeFilter: \["disabled", "tabindex", "href", "contenteditable"\]/u);
 assert.match(sourceReveal, /control\.getAttribute\("tabindex"\) !== "-1"/u);
-assert.match(sourcePublicPage, /Practice: composite index ordering\./u);
-assert.match(sourcePublicPage, /No timer — local demo/u);
-assert.match(sourcePublicPage, /It does not save attempts or calculate a review schedule; reset to retry the same question\./u);
 assert.match(sourcePublicPage, /className="button button-small button-primary nav-action" href="#session"/u);
 assert.match(sourcePublicPage, /compact-navigation/u);
 assert.doesNotMatch(sourcePublicPage, /Elapsed time/u);
-assert.match(sourcePublicPage, /href="#session">Open the SQL question<\/a>/u);
-assert.match(sourcePublicPage, /It shows the current response, explains what matters, and makes the next action explicit\./u);
-assert.match(sourcePublicPage, /Show what the current response supports and state when evidence is limited\./u);
 assert.doesNotMatch(sourcePublicPage, /It records what happened|recorded attempts/u);
-assert.match(sourcePublicPage, /href="#method">See the practice loop <span aria-hidden="true">→<\/span><\/a>/u);
-assert.match(sourcePublicPage, /href="#session">Try the local practice demo <span aria-hidden="true">→<\/span><\/a>/u);
 assert.doesNotMatch(sourcePublicPage, /href="#product">Explore (Algorithms|Certification)/u);
 assert.doesNotMatch(sourcePublicPage, /Two families|family-card|family-grid/u);
+assert.doesNotMatch(sourcePublicPage + sourceStyles, /EvidenceSection|BoundariesSection|evidence-layout|boundary-card/u);
 for (const trackName of [
   "Coding Interview: DSA & Problem Solving",
   "Backend System Design Interview",
@@ -140,7 +133,13 @@ for (const trackName of [
 ]) {
   assert.ok(sourcePublicPage.includes(trackName), `Missing canonical launch track: ${trackName}`);
 }
-assert.equal((sourcePublicPage.match(/glyph: /gu) || []).length, 8, "The public catalogue must expose exactly eight canonical launch tracks.");
+assert.equal((sourcePublicPage.match(/svg: /gu) || []).length, 8, "The public catalogue must expose exactly eight canonical launch tracks.");
+assert.doesNotMatch(sourcePublicPage + sourceStyles, /mask(?:-image|-position|-repeat|-size)?/iu, "Track icons must not use CSS masks.");
+for (const [iconName, iconSource] of trackIconSources) {
+  assert.match(iconSource, /^<svg\b[^>]*>/u, `${iconName} must remain an SVG root.`);
+  assert.match(iconSource, /currentColor/u, `${iconName} must inherit the mint icon color.`);
+  assert.doesNotMatch(iconSource, /<script\b|\son[a-z]+\s*=|<foreignObject\b|\s(?:href|src)\s*=|javascript:|data:/iu, `${iconName} must not contain executable or external SVG content.`);
+}
 assert.doesNotMatch(sourcePublicPage, /boundary errors|Review due: repeated strategy error|Continue guided practice/u);
 assert.match(sourceAdminPage, /initializationState === "loading"/u);
 assert.match(sourceAdminPage, /initializationState === "ready"/u);
@@ -154,8 +153,7 @@ assert.match(sourceStyles, /scroll-margin-top: 88px/u);
 assert.doesNotMatch(sourcePublicPage, /data-page-progress|page-progress/u);
 assert.doesNotMatch(sourceStyles, /\.page-progress/u);
 assert.match(sourceStyles, /--text-muted: #9aa8bb;/u);
-assert.match(sourceStyles, /--section-space: clamp\(6rem, 8vw, 8rem\)/u);
-assert.match(sourceStyles, /\.session-layout \{[^}]*margin-top: 44px/u);
+assert.match(sourceStyles, /--section-space: clamp\(4\.75rem, 6vw, 6\.5rem\)/u);
 assert.match(sourceStyles, /\.track-atlas \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/u);
 assert.match(sourceStyles, /@media \(max-width: 620px\)[\s\S]*\.track-atlas \{ grid-template-columns: 1fr; \}/u);
 assert.match(sourceStyles, /@media \(prefers-reduced-motion: reduce\)/u);
@@ -169,8 +167,23 @@ const moduleServer = await createServer({ root, appType: "custom", logLevel: "si
 try {
   const { PublicPage } = await moduleServer.ssrLoadModule("/src/pages/PublicPage.jsx");
   const renderedPublicPage = renderToStaticMarkup(createElement(PublicPage));
-  assert.match(renderedPublicPage, /Practice the/u, "The public React tree must render without an undefined runtime dependency.");
-  assert.match(renderedPublicPage, /decision-instrument/u, "The rendered public tree must include the decision instrument.");
+  assert.match(renderedPublicPage, /Build /u, "The public React tree must render without an undefined runtime dependency.");
+  assert.equal((renderedPublicPage.match(/role="radiogroup"/gu) || []).length, 1, "The public page must render one answer group.");
+  const radioIds = [...renderedPublicPage.matchAll(/<input\b(?=[^>]*\bid="([^"]+)")(?=[^>]*\bname="session-answer")(?=[^>]*\btype="radio")[^>]*>/gu)].map((match) => match[1]);
+  assert.equal(radioIds.length, 4, "The practice question must render four radios.");
+  assert.equal(new Set(radioIds).size, 4, "Each practice radio must have a unique id.");
+  for (const radioId of radioIds) assert.match(renderedPublicPage, new RegExp(`<label\\b(?=[^>]*\\bfor="${radioId}")[^>]*>`, "u"), `The ${radioId} radio must have a label.`);
+  assert.equal((renderedPublicPage.match(/\bid="session"/gu) || []).length, 1, "The page must render one #session anchor target.");
+  assert.match(renderedPublicPage, /<section\b(?=[^>]*\bid="session")(?=[^>]*\baria-labelledby="session-title")[^>]*>/u, "The #session target must be labelled by its question heading.");
+  assert.match(renderedPublicPage, /<h2\b[^>]*\bid="session-title"[^>]*>/u, "The #session target must contain a question heading.");
+  assert.match(renderedPublicPage, /<button\b(?=[^>]*\baria-controls="session-details")[^>]*>/u, "The details control must reference its explanation.");
+  assert.match(renderedPublicPage, /<p\b(?=[^>]*\bid="session-details")(?=[^>]*\bhidden="")[^>]*>/u, "The details target must remain in the DOM while closed.");
+  const primaryCtaTargets = [...renderedPublicPage.matchAll(/<a\b(?=[^>]*\bclass="[^"]*\bbutton-primary\b[^"]*")(?=[^>]*\bhref="([^"]+)")[^>]*>/gu)].map((match) => match[1]);
+  assert.ok(primaryCtaTargets.length > 0 && primaryCtaTargets.every((target) => target === "#session"), "Every primary public CTA must lead to the real practice question.");
+  const renderedIds = [...renderedPublicPage.matchAll(/\bid="([^"]+)"/gu)].map((match) => match[1]);
+  assert.equal(new Set(renderedIds).size, renderedIds.length, "Rendered public ids must be unique.");
+  assert.equal((renderedPublicPage.match(/class="track-card"/gu) || []).length, 8, "The public catalogue must render eight track cards.");
+  assert.equal((renderedPublicPage.match(/data-track-icon="[^"]+"[^>]*><svg\b/gu) || []).length, 8, "Every track card must render its local SVG inside the decorative icon wrapper.");
 } finally {
   await moduleServer.close();
 }

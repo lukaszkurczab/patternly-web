@@ -1,15 +1,16 @@
 # Patternly Web
 
-React/Vite surface for Patternly. The homepage follows the current Figma
-handoff: product surface, practice method, an inspectable session, evidence-led
-next steps, track families, brand boundaries, and the administrator entry point.
+React/Vite surface for Patternly. The homepage introduces interview and certification practice through one
+interactive SQL example, a concise practice method, eight learning tracks, and the administrator entry point.
+Track SVGs in `assets/icons` are copied unchanged from the mobile app’s
+`src/assets/icons`, using its `SelectTrackScreen` icon mapping.
 It does not expose a purchase action.
 
 The page uses React components for the public experience and `/admin`, with the
-visual system kept in `styles.css`. The hero decision instrument is an inline
-SVG whose neutral, inspect, and resolved paths follow the local question state.
-It has no continuous rendering loop and no raster or CDN dependency. Manrope
-and IBM Plex Sans are bundled locally through Fontsource.
+visual system kept in `styles.css`. The hero contains one local SQL practice
+question with answer feedback, details, and retry controls; it does not save
+progress or schedule reviews. Manrope and IBM Plex Sans are bundled locally
+through Fontsource.
 
 Vite builds two thin HTML entry documents—`index.html` for `/` and `admin.html`
 for the canonical `/admin` route—that both load `src/main.jsx`. The Vite dev and
@@ -63,3 +64,7 @@ The public page identifies the seller as Łukasz Kurczab and does not offer a
 purchase action. Before a sales launch it still needs the seller's publishable
 contact address, complete consumer documents, public origins, and a payment
 integration.
+
+## Repair record
+
+[Issue list, execution plan and resume instructions](docs/web-repair-plan.md).

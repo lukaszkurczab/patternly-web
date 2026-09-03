@@ -9,7 +9,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.lang = admin ? "pl" : "en";
-    document.title = admin ? "Patternly — Administracja" : "Patternly — Practice the decision";
+    document.title = admin ? "Patternly — Administracja" : "Patternly — Build confidence through practice";
 
     let favicon = document.querySelector('link[rel="icon"]');
     if (!favicon) {
