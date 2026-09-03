@@ -6,6 +6,8 @@ import {
   getAdminConfigurationError,
 } from "../adminConfig";
 import { buildAdminReportView } from "../adminReportView";
+import { AdminWorkspace } from "../components/AdminWorkspace";
+import "../../admin.css";
 import { Brand } from "../components/Brand";
 
 const TIMEOUT = 12_000;
@@ -216,11 +218,11 @@ export function AdminPage() {
           setRefreshRequired(false);
           if (!currentUser) {
             setQueueStatus("");
-            setAuthStatus(authOperation.current?.kind === "logout" ? "Wylogowano." : "Zaloguj się, aby odczytać kolejkę.");
+            setAuthStatus(authOperation.current?.kind === "logout" ? "Wylogowano." : "Zaloguj się kontem administratora.");
             setAuthKind("");
             return;
           }
-          setAuthStatus("Tożsamość przekazana do weryfikacji backendu.");
+          setAuthStatus("");
           setAuthKind("success");
           void load(currentUser, currentGeneration);
         });
@@ -399,21 +401,21 @@ export function AdminPage() {
       <a className="skip-link" href="#main-content">
         Przejdź do treści
       </a>
-      <header className="site-header">
+      <header className="site-header admin-header">
         <div className="header-inner">
-          <Brand ariaLabel="Patternly — strona główna" />
+          <Brand ariaLabel="Patternly — strona główna" /><span className="admin-header-label">Administracja</span>
         </div>
       </header>
       <main
         id="main-content"
-        className="section-shell"
+        className="section-shell admin-shell"
         tabIndex={-1}
         aria-busy={!configError && (initializationState === "loading" || busy)}
       >
-        <section className="admin-hero" aria-labelledby="admin-title">
+        <section className={`admin-hero ${user ? "admin-hero-signed-in" : ""}`} aria-labelledby="admin-title">
           <div className="admin-heading">
-            <p className="eyebrow">OGRANICZONY DOSTĘP</p>
-            <h1 id="admin-title">Panel administratora</h1>
+            <p className="eyebrow">PATTERNLY / ADMINISTRACJA</p>
+            <h1 id="admin-title">Centrum administracyjne</h1>
           </div>
           {configError ? (
             <div
@@ -436,11 +438,9 @@ export function AdminPage() {
             </div>
           ) : (
             <div className="admin-controls">
-              {initializationState !== "error" && (
+              {initializationState !== "error" && !user && (
                 <p className="lead">
-                  Zaloguj się kontem Firebase. Backend weryfikuje token i
-                  administratora po stronie serwera przed każdym odczytem
-                  kolejki.
+                  Zaloguj się, aby przeglądać pytania, monitorować użycie aplikacji i obsługiwać zgłoszenia.
                 </p>
               )}
               {initializationState === "loading" && (
@@ -504,11 +504,12 @@ export function AdminPage() {
           )}
         </section>
         {!configError && user && authPending !== "logout" && authPending !== "logout-failed" && (
+          <AdminWorkspace user={user} reports={queue} reportsReady={queueKind === "success" && !refreshRequired}>
           <section className="admin-queue" aria-labelledby="queue-title">
             <div className="section-heading">
-              <p className="eyebrow">KOLEJKA TRIAGE</p>
+              <p className="eyebrow">JAKOŚĆ TREŚCI</p>
               <h2 id="queue-title">Zgłoszenia oczekujące</h2>
-              <p>Odczyt pochodzi wyłącznie z API Patternly.</p>
+              <p>Przejrzyj uwagi użytkowników i śledź ich rozwiązanie.</p>
             </div>
             <button
               className="button button-secondary admin-refresh"
@@ -538,6 +539,7 @@ export function AdminPage() {
               ))}
             </div>
           </section>
+          </AdminWorkspace>
         )}
       </main>
     </>

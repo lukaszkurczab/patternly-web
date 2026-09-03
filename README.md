@@ -35,7 +35,9 @@ reload the page after changing Firebase environments.
 
 Run `npm run test:admin-config` for configuration boundary checks. With the local
 stack running, `npm run test:admin-local` checks real login, reads the existing
-queue and logs out; it does not add or remove reports. Set
+queue, verifies all eight configured publication tracks, opens a certification
+question with its correct answer, checks usage statistics, and logs out; it does
+not add or remove reports. Set
 `ADMIN_BROWSER_EXECUTABLE` when using an installed Chrome instead of Playwright
 Chromium.
 
@@ -85,6 +87,15 @@ configuration. Tests exercise session races, timeouts, failed logout/retry,
 access denial, status changes and uncertain writes. Use `npm run test:admin-local`
 with the local stack running to check real Firebase SDK/Auth Emulator/API
 login, queue retrieval and logout.
+
+The panel provides overview, question search with track filtering and pagination,
+full question/answer/explanation inspection, synchronized usage counts, and
+report triage. Question statistics refer to the backend-selected immutable
+publication, whose ID is shown separately from live deployment counts. Usage
+counts describe stored synchronized records, including review deletion markers;
+they are not active-user or session analytics. The backend owns publication
+configuration and administrator authorization. Admin-specific styles live in
+`admin.css`; public page typography does not control the dashboard.
 
 ## Production boundary
 

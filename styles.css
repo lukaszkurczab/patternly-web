@@ -222,34 +222,6 @@ h3 { font-size: 19px; font-weight: 620; line-height: 1.3; margin-bottom: 9px; }
 @keyframes stage-in { from { opacity: 0; transform: translate3d(24px, 12px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 
 /* The admin route keeps explicit operational states inside the shared visual system. */
-.admin-hero { display: grid; gap: 32px; min-height: 0; padding-bottom: 96px; padding-top: 96px; }
-.admin-heading { max-width: 760px; }
-.admin-heading h1 { margin-bottom: 0; }
-.admin-controls { max-width: 720px; }
-.admin-controls .lead { color: var(--text-secondary); font-size: 17px; line-height: 28px; max-width: 720px; }
-.admin-unavailable { background: linear-gradient(135deg, rgba(255, 210, 138, .07), rgba(22, 34, 57, .78) 58%); border: 1px solid rgba(255, 210, 138, .3); border-radius: var(--radius-md); display: grid; gap: 14px; max-width: 760px; padding: 28px 32px 32px; }
-.admin-state-label { color: var(--warning); font-family: var(--font-utility); font-size: 10px; font-weight: 600; letter-spacing: .12em; margin: 0; text-transform: uppercase; }
-.admin-unavailable .admin-status { font-size: 16px; line-height: 26px; margin: 0; }
-.admin-unavailable-copy { color: var(--text-secondary); font-size: 14px; line-height: 22px; margin: 0; max-width: 620px; }
-.admin-recovery { justify-self: start; margin-top: 6px; }
-.admin-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); display: grid; gap: 10px; max-width: 480px; padding: 24px; }
-.admin-form label { color: var(--text-secondary); font-size: 14px; }
-.admin-form input { background: var(--canvas); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--text); font: inherit; padding: 12px; }
-.admin-status { color: var(--text-muted); margin: 22px 0; }
-.admin-status-warning { color: var(--warning); }
-.admin-status-success { color: var(--mint); }
-.admin-queue { border-top: 1px solid var(--border); padding: 72px 0; }
-.admin-report-list { display: grid; gap: 14px; margin-top: 32px; }
-.admin-report { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 24px; }
-.admin-report h3 { color: var(--mint); margin-top: 0; }
-.admin-report p { color: var(--text); white-space: pre-wrap; }
-.admin-report dl { display: grid; gap: 10px; margin-bottom: 0; }
-.admin-report dl > div { display: grid; gap: 8px 16px; grid-template-columns: max-content 1fr; }
-.admin-report dt { color: var(--text-muted); }
-.admin-report dd { margin: 0; overflow-wrap: anywhere; }
-.admin-refresh, .admin-report-action { margin-top: 18px; }
-.admin-report-action:disabled, .admin-refresh:disabled { cursor: not-allowed; opacity: .58; }
-
 @media (max-width: 1080px) {
   .hero { gap: 28px; grid-template-columns: minmax(0, .82fr) minmax(460px, 1.18fr); }
   h1 { font-size: clamp(3.35rem, 6vw, 4.35rem); }
