@@ -41,7 +41,7 @@ assert.deepEqual(buildAdminReportView({
   createdAt: "2026-08-25T10:00:00Z",
   context: { modeRoute: "/practice", releasePackageId: "release-9", trackNode: "arrays" },
 }), {
-  heading: "incorrect-answer · open",
+  heading: "incorrect-answer · otwarte",
   description: "Needs review.",
   fields: [
     ["Element", "item-42"],
@@ -69,7 +69,6 @@ const sourceHtml = await readFile(resolve(root, "index.html"), "utf8");
 const sourceAdminHtml = await readFile(resolve(root, "admin.html"), "utf8");
 const sourceApp = await readFile(resolve(root, "src/App.jsx"), "utf8");
 const sourcePublicPage = await readFile(resolve(root, "src/pages/PublicPage.jsx"), "utf8");
-const sourceAdminPage = await readFile(resolve(root, "src/pages/AdminPage.jsx"), "utf8");
 const sourceQuestions = await readFile(resolve(root, "src/components/InteractiveQuestion.jsx"), "utf8");
 const sourceStyles = await readFile(resolve(root, "styles.css"), "utf8");
 const sourceReveal = await readFile(resolve(root, "src/hooks/useReveal.jsx"), "utf8");
@@ -86,6 +85,8 @@ assert.doesNotMatch(sourceHtml, /<meta\b[^>]*name=["']robots["']/iu);
 assert.match(sourceAdminHtml, /<div id="root"><\/div>/u);
 assert.match(sourceAdminHtml, /src="\/src\/main\.jsx"/u);
 assert.match(sourceAdminHtml, robotsMetaPattern);
+assert.doesNotMatch(sourceHtml + sourceAdminHtml, /PATTERNLY_ADMIN_(CONFIG|API_ORIGIN)/u);
+assert.match(await readFile(resolve(root, "src/adminConfig.js"), "utf8"), /VITE_ADMIN_FIREBASE_API_KEY/u);
 assert.equal(ADMIN_ROUTE_PATH, "/admin");
 assert.deepEqual(ADMIN_ROUTE_REDIRECT_PATHS, ["/admin/", "/admin.html"]);
 assert.equal(isCanonicalAdminPath("/admin"), true);
@@ -95,8 +96,6 @@ assert.match(sourceApp, /isCanonicalAdminPath\(window\.location\.pathname\)/u);
 assert.doesNotMatch(sourceApp, /startsWith\(["']\/admin\//u);
 assert.match(sourceApp, /document\.title = admin \? "Patternly — Administracja" : "Patternly — Build confidence through practice"/u);
 assert.match(sourcePublicPage, /<main id="main-content" tabIndex=\{-1\}>/u);
-assert.match(sourceAdminPage, /<a className="skip-link" href="#main-content">/u);
-assert.match(sourceAdminPage, /<main id="main-content" className="section-shell" tabIndex=\{-1\}/u);
 assert.match(sourceQuestions, /type="radio"/u);
 assert.match(sourceQuestions, /role="radiogroup"/u);
 assert.doesNotMatch(sourceQuestions, /aria-pressed/u);
@@ -141,13 +140,6 @@ for (const [iconName, iconSource] of trackIconSources) {
   assert.doesNotMatch(iconSource, /<script\b|\son[a-z]+\s*=|<foreignObject\b|\s(?:href|src)\s*=|javascript:|data:/iu, `${iconName} must not contain executable or external SVG content.`);
 }
 assert.doesNotMatch(sourcePublicPage, /boundary errors|Review due: repeated strategy error|Continue guided practice/u);
-assert.match(sourceAdminPage, /initializationState === "loading"/u);
-assert.match(sourceAdminPage, /initializationState === "ready"/u);
-assert.match(sourceAdminPage, /initializationState === "error"/u);
-assert.match(sourceAdminPage, /className="admin-unavailable"/u);
-assert.match(sourceAdminPage, /role="alert">\{configError\}<\/div>/u);
-assert.match(sourceAdminPage, /Wróć na stronę główną/u);
-assert.match(sourceAdminPage, /ariaLabel="Patternly — strona główna"/u);
 assert.doesNotMatch(sourcePublicPage, />Open Patternly</u);
 assert.match(sourceStyles, /scroll-margin-top: 88px/u);
 assert.doesNotMatch(sourcePublicPage, /data-page-progress|page-progress/u);
@@ -163,8 +155,16 @@ assert.match(sourceStyles, /@media \(max-width: 480px\)[\s\S]*\.nav-action \{ di
 assert.equal((sourceStyles.match(/@font-face/gu) || []).length, 4, "Only Latin and Latin Extended font faces should ship.");
 assert.doesNotMatch(sourceStyles, /cyrillic|greek|vietnamese/u);
 
-const moduleServer = await createServer({ root, appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+const moduleServer = await createServer({ root, appType: "custom", logLevel: "silent", server: { middlewareMode: true }, define: { "import.meta.env.VITE_ADMIN_FIREBASE_API_KEY": '""' } });
 try {
+  const { AdminPage } = await moduleServer.ssrLoadModule("/src/pages/AdminPage.jsx");
+  const renderedAdminPage = renderToStaticMarkup(createElement(AdminPage));
+  assert.match(renderedAdminPage, /<main\b(?=[^>]*\bid="main-content")(?=[^>]*\btabindex="-1")[^>]*>/iu);
+  assert.match(renderedAdminPage, /href="#main-content"/u);
+  assert.match(renderedAdminPage, /role="alert"/u);
+  assert.ok(renderedAdminPage.includes(ADMIN_UNAVAILABLE_MESSAGE));
+  assert.match(renderedAdminPage, /Wróć na stronę główną/u);
+  assert.doesNotMatch(renderedAdminPage, /<form\b/u);
   const { PublicPage } = await moduleServer.ssrLoadModule("/src/pages/PublicPage.jsx");
   const renderedPublicPage = renderToStaticMarkup(createElement(PublicPage));
   assert.match(renderedPublicPage, /Build /u, "The public React tree must render without an undefined runtime dependency.");

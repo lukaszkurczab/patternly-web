@@ -1,0 +1,18 @@
+{
+  "hosting": {
+    "site": "patternly-app-sandbox",
+    "public": "dist",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "redirects": [
+      { "source": "/admin/", "destination": "/admin", "type": 301 },
+      { "source": "/admin.html", "destination": "/admin", "type": 301 }
+    ],
+    "headers": [
+      {
+        "source": "/admin",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      }
+    ]
+  }
+}
