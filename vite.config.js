@@ -26,9 +26,19 @@ function canonicalAdminRoutePlugin() {
     name: "patternly-canonical-admin-route",
     configureServer(server) {
       redirectAdminAliases(server);
+      server.middlewares.use((request, _response, next) => {
+        const pathname = new URL(request.url || "/", "http://patternly.local").pathname;
+        if (pathname === "/privacy-request" || pathname.startsWith("/privacy-request/")) request.url = "/index.html";
+        next();
+      });
     },
     configurePreviewServer(server) {
       redirectAdminAliases(server);
+      server.middlewares.use((request, _response, next) => {
+        const pathname = new URL(request.url || "/", "http://patternly.local").pathname;
+        if (pathname === "/privacy-request" || pathname.startsWith("/privacy-request/")) request.url = "/index.html";
+        next();
+      });
     },
   };
 }

@@ -8,6 +8,10 @@
       { "source": "/admin/", "destination": "/admin", "type": 301 },
       { "source": "/admin.html", "destination": "/admin", "type": 301 }
     ],
+    "rewrites": [
+      { "source": "/privacy-request", "destination": "/index.html" },
+      { "source": "/privacy-request/**", "destination": "/index.html" }
+    ],
     "headers": [
       {
         "source": "/admin",

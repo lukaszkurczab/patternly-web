@@ -6,6 +6,20 @@
   src: url("./node_modules/@fontsource-variable/manrope/files/manrope-latin-ext-wght-normal.woff2") format("woff2-variations");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
+.privacy-public {
+  max-width: 720px;
+  padding-block: clamp(3rem, 8vw, 7rem);
+}
+
+.privacy-public > h1 { margin-block: .5rem 1rem; }
+.privacy-public-intro { color: var(--color-text-muted); max-width: 62ch; }
+.privacy-public-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #d9ddd9); border-radius: 1rem; display: grid; gap: .75rem; margin-top: 2rem; padding: clamp(1.25rem, 4vw, 2rem); }
+.privacy-public-card input, .privacy-public-card select, .privacy-public-card textarea { background: #fff; border: 1px solid #aeb7b0; border-radius: .5rem; color: #17231d; font: inherit; padding: .75rem; width: 100%; }
+.privacy-public-card textarea { resize: vertical; }
+.privacy-public-card .button { justify-self: start; margin-top: .5rem; }
+.privacy-public-message { margin: .5rem 0 0; }
+.privacy-public-response { white-space: pre-wrap; }
 @font-face {
   font-display: swap;
   font-family: "Manrope Variable";

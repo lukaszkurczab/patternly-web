@@ -9,6 +9,9 @@ import { buildAdminReportView } from "../adminReportView";
 import { AdminWorkspace } from "../components/AdminWorkspace";
 import "../../admin.css";
 import { Brand } from "../components/Brand";
+import { PrivacyRequestsPanel } from "../components/PrivacyRequestsPanel";
+import { LegalRequestsPanel } from "../components/LegalRequestsPanel";
+import { SecurityIncidentsPanel } from "../components/SecurityIncidentsPanel";
 
 const TIMEOUT = 12_000;
 const next = { open: "in_review", in_review: "resolved", resolved: "closed" };
@@ -503,7 +506,7 @@ export function AdminPage() {
             </div>
           )}
         </section>
-        {!configError && user && authPending !== "logout" && authPending !== "logout-failed" && (
+        {!configError && user && authPending !== "logout" && authPending !== "logout-failed" && (<>
           <AdminWorkspace user={user} reports={queue} reportsReady={queueKind === "success" && !refreshRequired}>
           <section className="admin-queue" aria-labelledby="queue-title">
             <div className="section-heading">
@@ -540,7 +543,10 @@ export function AdminPage() {
             </div>
           </section>
           </AdminWorkspace>
-        )}
+          <PrivacyRequestsPanel user={user} />
+          <LegalRequestsPanel user={user} />
+          <SecurityIncidentsPanel user={user} />
+        </>)}
       </main>
     </>
   );

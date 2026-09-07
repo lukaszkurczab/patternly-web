@@ -124,6 +124,54 @@
 .admin-report dt { color: var(--text-muted); }
 .admin-report dd { margin: 0; overflow-wrap: anywhere; }
 .admin-report-action { margin-top: 16px; }
+.admin-privacy-queue, .admin-legal-queue { margin-top: 48px; }
+.admin-privacy-detail { margin-top: 24px; }
+.admin-legal-detail { margin-top: 24px; }
+.admin-privacy-form { display: grid; gap: 10px; margin-top: 20px; }
+.admin-privacy-form label { color: var(--text-secondary); display: grid; gap: 8px; font-size: 13px; }
+.admin-privacy-form input, .admin-privacy-form select, .admin-privacy-form textarea { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font: inherit; min-height: 42px; padding: 10px 12px; }
+.admin-privacy-form textarea { min-height: 96px; resize: vertical; }
+.admin-action-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.admin-security-queue { margin-top: 48px; }
+.security-incident-create { overflow: visible; padding: 20px 22px; }
+.security-incident-create summary { cursor: pointer; color: var(--text); font-size: 15px; font-weight: 500; }
+.security-incident-create[open] summary { margin-bottom: 16px; }
+.security-incident-list-item h3 { margin-bottom: 18px; }
+.security-incident-list-item dl { margin: 0; }
+.security-incident-detail { margin-top: 24px; }
+.security-incident-detail:focus { outline: 2px solid var(--mint); outline-offset: 4px; }
+.security-incident-detail .admin-panel-heading { margin: -24px -24px 0; }
+.security-incident-detail .admin-panel-heading h3 { color: var(--text); margin: 0; }
+.admin-incident-overdue { color: var(--warning); font-weight: 600; }
+.admin-incident-operation { margin-top: 22px; }
+.admin-incident-operation > h4 { margin: 0 0 10px; }
+.admin-incident-operation > p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+.admin-incident-operation dl { display: grid; gap: 10px; font-size: 13px; }
+.admin-incident-operation dl > div { display: grid; gap: 8px 16px; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); }
+.admin-incident-operation dd { margin: 0; overflow-wrap: anywhere; }
+.admin-incident-status-grid { display: grid; gap: 10px 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-incident-status-grid p { margin: 0; }
+.admin-incident-disclosure { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 18px; }
+.admin-incident-disclosure summary { cursor: pointer; color: var(--text); font-weight: 500; }
+.admin-incident-disclosure[open] > summary { margin-bottom: 14px; }
+.admin-incident-disclosure .admin-note { margin: 14px 0; }
+.admin-incident-disclosure > p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+.admin-incident-disclosure fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.admin-incident-disclosure legend { color: var(--text); font-size: 14px; font-weight: 500; margin-bottom: 10px; padding: 0; }
+.admin-incident-disclosure .admin-privacy-form { margin-top: 18px; }
+.admin-incident-disclosure .admin-privacy-form:first-of-type { margin-top: 0; }
+.admin-incident-assessment-summary { margin: 0 0 20px; }
+.admin-incident-export-download { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 18px; }
+.admin-incident-export-download p { margin: 0 0 12px; }
+.admin-incident-history { display: grid; gap: 14px; margin: 0; padding: 0 0 0 24px; }
+.admin-incident-history li { padding-left: 4px; }
+.admin-incident-history li > strong { display: block; margin-bottom: 4px; }
+.admin-incident-history li > time { color: var(--text-secondary); font-size: 13px; }
+.admin-incident-history dl { margin: 10px 0 0; }
+.admin-incident-history-notifications { color: var(--text-secondary); margin: 0; padding-left: 22px; }
+.admin-incident-history-notifications li { margin: 6px 0; }
+.admin-checkbox { display: flex !important; align-items: center; gap: 8px; }
+.admin-checkbox input { min-height: auto; width: 18px; }
 @media (max-width: 900px) {
   .admin-workspace { grid-template-columns: 1fr; }
   .admin-navigation { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--border); padding: 14px 0; overflow-x: auto; }
@@ -144,5 +192,6 @@
   .admin-view-heading { flex-wrap: wrap; }
   .admin-header-label { padding-left: 16px; }
   .admin-panel-heading { align-items: flex-start; flex-direction: column; }
+  .admin-incident-status-grid { grid-template-columns: 1fr; }
   .admin-table td, .admin-table th { padding: 12px 16px; }
 }

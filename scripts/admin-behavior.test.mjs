@@ -19,6 +19,14 @@ const entry = (status = "open", id = "11111111-1111-4111-8111-111111111111") => 
   reason: "other", description: "Opis zgłoszenia do testu komponentu.", status,
   createdAt: "2026-09-03T08:00:00Z", context: {},
 });
+const privacyEntry = (status = "received", revision = 0) => ({ requestId: "pr_11111111-1111-4111-8111-111111111111", right: "access", channel: "account", status, outcome: status === "fulfilled" ? "fulfilled" : null, receivedAt: "2026-09-03T08:00:00Z", deadlineAt: "2026-10-03T08:00:00Z", deliveredAt: status === "fulfilled" ? "2026-09-04T08:00:00Z" : null, revision, narrative: "Proszę o kopię danych", reportSubmissionIds: [], reason: null, executionEvidence: null, responseAvailableUntil: null, subjectVerified: true });
+const legalEntry = (overrides = {}) => ({ requestId: "lr_11111111-1111-4111-8111-111111111111", kind: "complaint", status: "received", receivedAt: "2026-09-03T08:00:00Z", responseDueAt: "2026-09-17T08:00:00Z", answeredAt: null, retentionUntil: null, response: null, legalHold: false, revision: 0, ...overrides });
+const incidentEntry = (overrides = {}) => ({ incidentId: "si_11111111-1111-4111-8111-111111111111", classification: "triage", authorityDecision: "undecided", authorityDeliveryStatus: "not_started", subjectDecision: "undecided", subjectNotificationStatus: "not_started", awarenessAt: null, authorityDeadlineAt: null, closedAt: null, revision: 0, legalHold: false, nextAction: "acknowledge_awareness", ...overrides });
+const incidentAssessment = (overrides = {}) => ({ details: "Poufny opis: recipient@example.com; wewnętrzna ocena.", detectedAt: "2026-09-03T07:00:00Z", occurredAt: "2026-09-03T06:30:00Z", categories: "Dane konta", dataSubjectCount: "2", recordCount: "4", specialData: false, confidentialityImpact: "Niski", integrityImpact: "Brak", availabilityImpact: "Brak", consequences: "Weryfikacja", likelihood: "Niskie", severity: "Niska", containment: "Dostęp ograniczony", remediation: "Dane zweryfikowane", prevention: "Monitoring", postmortem: "Przegląd zakończony", ...overrides });
+const incidentDetails = (overrides = {}) => {
+  const details = overrides.details ?? overrides.assessment?.details ?? "Poufny opis: recipient@example.com; wewnętrzna ocena.";
+  return { ...incidentEntry(), title: "Roboczy tytuł incydentu", details, assessmentVersion: 1, createdAt: "2026-09-03T08:00:00Z", updatedAt: "2026-09-03T09:00:00Z", authorityExportVersion: null, authorityReason: null, subjectReason: null, authoritySubmissionReference: null, preparedRecipients: [], subjectNotifications: [], auditHistory: [{ event: "incident_created", actorPseudonym: "a".repeat(32), at: "2026-09-03T08:00:00Z", revision: null, assessmentVersion: null, snapshot: null }], ...overrides, details, assessment: incidentAssessment({ details, ...(overrides.assessment || {}) }) };
+};
 const inspectionQuestions = [
   {
     id: "choice-inspection",
@@ -202,7 +210,7 @@ async function screen(t) {
   const page = await context.newPage();
   page.setDefaultTimeout(5000);
   page.on("pageerror", (error) => t.diagnostic(error.message));
-  const state = { reports: [entry()], requests: [], handler: null };
+  const state = { reports: [entry()], privacy: [], legal: [], incidents: [], incidentDetails: {}, requests: [], handler: null };
   await page.route(`${api}/**`, async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204 });
@@ -217,8 +225,62 @@ async function screen(t) {
         questions,
       } });
     }
-    state.requests.push({ method: request.method(), token: request.headers().authorization });
+    state.requests.push({ method: request.method(), path: new URL(request.url()).pathname, token: request.headers().authorization, body: request.postDataJSON() });
     if (state.handler && await state.handler(route)) return;
+    const path = new URL(request.url()).pathname;
+    if (path === "/v1/admin/privacy-requests" && request.method() === "GET") return route.fulfill({ json: { requests: state.privacy } });
+    if (path.startsWith("/v1/admin/privacy-requests/") && request.method() === "GET") return route.fulfill({ json: { request: state.privacy[0] } });
+    if (path.startsWith("/v1/admin/privacy-requests/") && request.method() === "PATCH") {
+      const action = request.postDataJSON().action;
+      const current = state.privacy[0];
+      const updated = { ...current, revision: current.revision + 1, status: action === "start_review" ? "in_review" : action === "execute_export" ? "response_ready" : current.status, outcome: action === "execute_export" ? "fulfilled" : current.outcome };
+      state.privacy = [updated];
+      return route.fulfill({ json: { request: updated } });
+    }
+    if (path === "/v1/admin/legal-requests" && request.method() === "GET") return route.fulfill({ json: { requests: state.legal } });
+    if (path.startsWith("/v1/admin/legal-requests/") && request.method() === "GET") return route.fulfill({ json: { request: { ...state.legal[0], email: "customer@example.test", narrative: "Proszę o odpowiedź w sprawie subskrypcji.", transactionId: "transaction-123" } } });
+    if (path.startsWith("/v1/admin/legal-requests/") && request.method() === "PATCH") {
+      const action = request.postDataJSON();
+      const current = state.legal[0];
+      const updated = {
+        ...current,
+        revision: current.revision + 1,
+        status: action.action === "start_review" ? "in_review" : action.action === "answer" ? "answered" : action.action === "close" ? "closed" : current.status,
+        response: action.action === "answer" ? action.response : current.response,
+        answeredAt: action.action === "answer" ? "2026-09-04T08:00:00Z" : current.answeredAt,
+        retentionUntil: action.action === "close" ? "2032-09-04T08:00:00Z" : current.retentionUntil,
+        legalHold: action.action === "set_legal_hold" ? action.active : current.legalHold,
+      };
+      state.legal = [updated];
+      return route.fulfill({ json: { request: updated } });
+    }
+    if (path === "/v1/admin/security-incidents" && request.method() === "GET") return route.fulfill({ json: { incidents: state.incidents } });
+    if (path === "/v1/admin/security-incidents" && request.method() === "POST") {
+      const created = incidentDetails({ incidentId: "si_22222222-2222-4222-8222-222222222222", title: request.postDataJSON().title, details: request.postDataJSON().details });
+      state.incidentDetails[created.incidentId] = created;
+      state.incidents = [incidentEntry({ incidentId: created.incidentId, nextAction: created.nextAction }), ...state.incidents];
+      return route.fulfill({ status: 201, json: { incident: created } });
+    }
+    if (path.startsWith("/v1/admin/security-incidents/") && request.method() === "GET") {
+      if (path.includes("/authority-exports/")) return route.fulfill({ json: { payload: JSON.stringify({ exact: true, version: 1 }), digest: "d".repeat(43), version: 1 } });
+      const incidentId = decodeURIComponent(path.split("/").at(-1));
+      const incident = state.incidentDetails[incidentId] || incidentDetails(state.incidents.find((item) => item.incidentId === incidentId));
+      return route.fulfill({ json: { incident } });
+    }
+    if (path.startsWith("/v1/admin/security-incidents/") && request.method() === "PATCH") {
+      const incidentId = decodeURIComponent(path.split("/").at(-1));
+      const current = state.incidentDetails[incidentId] || incidentDetails(state.incidents.find((item) => item.incidentId === incidentId));
+      const action = request.postDataJSON();
+      let updated = { ...current, revision: current.revision + 1 };
+      if (action.action === "acknowledge_awareness") updated = { ...updated, awarenessAt: "2026-09-07T08:00:00Z", authorityDeadlineAt: "2026-09-10T08:00:00Z", nextAction: "classify" };
+      if (action.action === "classify") updated = { ...updated, classification: action.classification, nextAction: "decide_authority" };
+      if (action.action === "decide_authority") updated = { ...updated, authorityDecision: action.decision, authorityReason: action.reason, nextAction: action.decision === "required" ? "prepare_authority_export" : "decide_subject" };
+      if (action.action === "decide_subject") updated = { ...updated, subjectDecision: action.decision, subjectReason: action.reason, nextAction: action.decision === "required" ? "prepare_subject_notification" : "close" };
+      if (action.action === "prepare_subject_notification") updated = { ...updated, subjectNotificationStatus: "prepared", preparedRecipients: action.recipients.map((_, index) => ({ recipientPseudonym: `recipient-${String(index).padStart(16, "0")}`, snapshotVersion: 1 })), nextAction: "send_subject_notification" };
+      state.incidentDetails[incidentId] = updated;
+      state.incidents = state.incidents.map((item) => item.incidentId === incidentId ? incidentEntry({ incidentId, classification: updated.classification, authorityDecision: updated.authorityDecision, authorityDeliveryStatus: updated.authorityDeliveryStatus, subjectDecision: updated.subjectDecision, subjectNotificationStatus: updated.subjectNotificationStatus, awarenessAt: updated.awarenessAt, authorityDeadlineAt: updated.authorityDeadlineAt, closedAt: updated.closedAt, revision: updated.revision, legalHold: updated.legalHold, nextAction: updated.nextAction }) : item);
+      return route.fulfill({ json: { incident: updated } });
+    }
     if (request.method() === "GET") return route.fulfill({ json: { reports: state.reports } });
     const report = entry(request.postDataJSON().status);
     state.reports = report.status === "closed" ? [] : [report];
@@ -250,6 +312,280 @@ test("full cycle and callback-before-promise login/logout clear credentials", as
   await expect(page.getByText("Wylogowano.", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Adres e-mail")).toHaveValue("");
   await expect(page.getByLabel("Hasło")).toHaveValue("");
+});
+
+test("privacy queue opens details and runs only the server-owned export executor", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login(); await ready();
+  state.privacy = [privacyEntry()];
+  await page.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await page.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await expect(page.getByText("Proszę o kopię danych")).toBeVisible();
+  await page.getByRole("button", { name: "Rozpocznij analizę" }).last().click();
+  await page.getByRole("button", { name: "Wykonaj bezpieczny eksport" }).click();
+  assert.equal(state.privacy[0].status, "response_ready");
+  const actions = state.requests.filter((request) => request.method === "PATCH");
+  assert.equal(actions.length, 2);
+});
+
+test("legal request queue performs the canonical consumer-case actions with revisions", async (t) => {
+  const { page, state, login } = await screen(t);
+  state.legal = [legalEntry({ kind: "complaint" })];
+  await login();
+  const queue = page.locator(".admin-legal-queue");
+  await expect(queue.getByRole("heading", { name: "Reklamacja · Przyjęta", exact: true })).toBeVisible();
+  await queue.getByRole("button", { name: "Otwórz sprawę" }).click();
+  const detail = page.getByRole("region", { name: "Szczegóły sprawy konsumenckiej" });
+  await expect(detail).toContainText("Proszę o odpowiedź w sprawie subskrypcji.");
+  await detail.getByRole("button", { name: "Rozpocznij analizę" }).click();
+  await detail.getByLabel("Odpowiedź dla klienta").fill("Odpowiedź dla klienta.");
+  await detail.getByRole("button", { name: "Wyślij odpowiedź" }).click();
+  await detail.getByRole("button", { name: "Zamknij sprawę" }).click();
+  await expect(detail).toContainText("Zamknięta");
+  await detail.getByLabel("Uzasadnienie blokady retencji").fill("Trwa postępowanie.");
+  await detail.getByRole("button", { name: "Ustaw blokadę retencji" }).click();
+  await expect(detail).toContainText("Aktywna");
+  await detail.getByLabel("Uzasadnienie blokady retencji").fill("Postępowanie zakończone.");
+  await detail.getByRole("button", { name: "Zwolnij blokadę retencji" }).click();
+  await expect(detail).toContainText("Brak");
+  const actions = state.requests.filter((item) => item.path.startsWith("/v1/admin/legal-requests/") && item.method === "PATCH");
+  assert.deepEqual(actions.map((item) => item.body.action), ["start_review", "answer", "close", "set_legal_hold", "set_legal_hold"]);
+  assert.deepEqual(actions.map((item) => item.body.expectedRevision), [0, 1, 2, 3, 4]);
+  assert.equal(state.legal[0].status, "closed");
+});
+
+test("security incident list is minimal and details are lazy", async (t) => {
+  const { page, state, login } = await screen(t);
+  const incident = incidentEntry({ nextAction: "decide_authority" });
+  state.incidents = [incident];
+  const details = incidentDetails({
+    ...incident,
+    title: "Tytuł, którego nie pokazujemy na liście",
+    details: "Sekretny opis recipient@example.com",
+    assessment: incidentAssessment({ details: "Sekretny opis recipient@example.com", detectedAt: "2026-09-03T07:00:00.000Z", occurredAt: "2026-09-03T06:30:00.000Z", containedAt: "2026-09-03T06:45:00.000Z", specialData: true }),
+    authorityReason: "Powód poufny",
+    subjectReason: "Inny powód",
+    authorityDecision: "required",
+    authorityExportVersion: 1,
+  });
+  state.incidentDetails[incident.incidentId] = details;
+  await login();
+  const list = page.locator(".admin-security-queue .admin-report-list");
+  await expect(list.getByRole("heading", { name: "Do oceny", exact: true })).toBeVisible();
+  const listText = await list.innerText();
+  assert.match(listText, /Podejmij decyzję dotyczącą UODO/u);
+  assert.equal(listText.includes(incident.incidentId), false);
+  assert.equal(listText.includes(details.title), false);
+  assert.equal(listText.includes("Sekretny opis"), false);
+  assert.equal(listText.includes("recipient@example.com"), false);
+  assert.equal(state.requests.filter((request) => request.path === `/v1/admin/security-incidents/${incident.incidentId}`).length, 0);
+  await list.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  const region = page.getByRole("region", { name: "Szczegóły incydentu" });
+  await expect(region).toContainText("Sekretny opis recipient@example.com");
+  await expect(region).toContainText("Kategorie danych");
+  await expect(region).toContainText("Dane szczególnej kategorii");
+  await expect(region).toContainText("Opanowano");
+  await expect(region).toContainText("Utworzono");
+  await region.locator("summary").filter({ hasText: "Historia" }).click();
+  await expect(region).toContainText("Utworzono incydent");
+  await region.locator("summary").filter({ hasText: "Eksport i ręczny dowód dla UODO" }).click();
+  await page.evaluate(() => {
+    window.securityExportTest = { created: 0, revoked: [], download: null, mime: null };
+    URL.createObjectURL = (blob) => { window.securityExportTest.created += 1; window.securityExportTest.mime = blob.type; return "blob:security-export"; };
+    URL.revokeObjectURL = (value) => { window.securityExportTest.revoked.push(value); };
+    HTMLAnchorElement.prototype.click = function click() { window.securityExportTest.download = { href: this.href, name: this.download }; };
+  });
+  await region.getByRole("button", { name: /Pobierz eksport UODO/u }).click();
+  await expect(region.getByText("Pobrano dokładny eksport UODO, wersja 1.", { exact: true })).toBeVisible();
+  const exportRuntime = await page.evaluate(() => window.securityExportTest);
+  assert.equal(exportRuntime.created, 1);
+  assert.equal(exportRuntime.mime, "application/json;charset=utf-8");
+  assert.deepEqual(exportRuntime.revoked, ["blob:security-export"]);
+  assert.match(exportRuntime.download.name, /authority-export-v1\.json/u);
+  const download = state.requests.find((request) => request.path === `/v1/admin/security-incidents/${incident.incidentId}/authority-exports/1`);
+  assert.ok(download);
+  assert.equal(download.token, "Bearer token:admin@example.test");
+  assert.equal(download.path.includes("token"), false);
+  assert.equal(state.requests.filter((request) => request.path === `/v1/admin/security-incidents/${incident.incidentId}`).length, 1);
+  state.handler = async (route) => {
+    if (route.request().url().includes("/authority-exports/") && route.request().method() === "GET") {
+      await route.fulfill({ json: { payload: "", digest: "d".repeat(42), version: 1, extra: true } });
+      return true;
+    }
+    return false;
+  };
+  await region.getByRole("button", { name: /Pobierz eksport UODO/u }).click();
+  await expect(region.getByRole("status")).toContainText("Serwer nie potwierdził dokładnej wersji eksportu");
+  assert.equal((await page.evaluate(() => window.securityExportTest)).created, 1);
+});
+
+test("security incident creation sends the complete current assessment contract", async (t) => {
+  const { page, state, login } = await screen(t);
+  await login();
+  const panel = page.locator(".admin-security-queue");
+  await panel.locator("summary").filter({ hasText: "Dodaj incydent" }).click();
+  await panel.getByLabel("Tytuł roboczy").fill("Nowy incydent");
+  const fields = {
+    "Opis i ocena": "Pierwsza ocena incydentu.",
+    "Wykryto (data i czas)": "2026-09-07T10:00",
+    "Opanowano (data i czas, opcjonalnie)": "2026-09-07T12:00",
+    "Kategorie danych": "Dane konta",
+    "Szacowana liczba osób": "1",
+    "Szacowana liczba rekordów": "1",
+    "Wpływ na poufność": "Niski",
+    "Wpływ na integralność": "Brak",
+    "Wpływ na dostępność": "Brak",
+    "Możliwe konsekwencje": "Konieczność weryfikacji.",
+    "Prawdopodobieństwo": "Niskie",
+    "Dotkliwość": "Niska",
+    "Działania ograniczające": "Dostęp ograniczony.",
+    "Działania naprawcze": "Dane zweryfikowane.",
+    "Działania zapobiegawcze": "Dodano monitoring.",
+    "Podsumowanie po incydencie": "Przegląd zakończony.",
+  };
+  for (const [label, value] of Object.entries(fields)) await panel.getByLabel(label, { exact: true }).fill(value);
+  await panel.getByRole("button", { name: "Utwórz incydent" }).click();
+  await expect(panel.getByText("Incydent zapisano.", { exact: false })).toBeVisible();
+  const post = state.requests.find((request) => request.method === "POST" && request.path === "/v1/admin/security-incidents");
+  assert.equal(post.body.title, "Nowy incydent");
+  assert.equal(post.body.details, fields["Opis i ocena"]);
+  assert.match(post.body.detectedAt, /T/u);
+  assert.match(post.body.containedAt, /T/u);
+  assert.equal(post.body.specialData, false);
+  for (const key of ["categories", "dataSubjectCount", "recordCount", "confidentialityImpact", "integrityImpact", "availabilityImpact", "consequences", "likelihood", "severity", "containment", "remediation", "prevention", "postmortem"]) assert.ok(post.body[key]);
+  assert.equal(Object.hasOwn(post.body, "occurredAt"), false);
+  const listText = await panel.locator(".admin-report-list").innerText();
+  assert.equal(listText.includes("Nowy incydent"), false);
+  assert.equal(listText.includes(fields["Opis i ocena"]), false);
+  await expect(panel.getByLabel("Tytuł roboczy")).toHaveValue("");
+  await expect(panel.getByLabel("Opis i ocena")).toHaveValue("");
+  assert.equal(Object.hasOwn(post.body, "clientRequestId"), false);
+});
+
+test("uncertain security incident creation blocks retry until a refresh", async (t) => {
+  const { page, state, login } = await screen(t);
+  await login();
+  const panel = page.locator(".admin-security-queue");
+  await panel.locator("summary").filter({ hasText: "Dodaj incydent" }).click();
+  await panel.getByLabel("Tytuł roboczy").fill("Niepewny zapis");
+  const fields = {
+    "Opis i ocena": "Ocena zapisu oczekującego na potwierdzenie.",
+    "Wykryto (data i czas)": "2026-09-07T10:00",
+    "Kategorie danych": "Dane konta",
+    "Szacowana liczba osób": "1",
+    "Szacowana liczba rekordów": "1",
+    "Wpływ na poufność": "Niski",
+    "Wpływ na integralność": "Brak",
+    "Wpływ na dostępność": "Brak",
+    "Możliwe konsekwencje": "Weryfikacja.",
+    "Prawdopodobieństwo": "Niskie",
+    "Dotkliwość": "Niska",
+    "Działania ograniczające": "Dostęp ograniczony.",
+    "Działania naprawcze": "Dane zweryfikowane.",
+    "Działania zapobiegawcze": "Monitoring.",
+    "Podsumowanie po incydencie": "Przegląd.",
+  };
+  for (const [label, value] of Object.entries(fields)) await panel.getByLabel(label, { exact: true }).fill(value);
+  state.handler = async (route) => {
+    if (route.request().url().endsWith("/v1/admin/security-incidents") && route.request().method() === "POST") {
+      await route.fulfill({ status: 503, json: { error: { code: "security_incident_email_unavailable" } } });
+      return true;
+    }
+    return false;
+  };
+  const createButton = panel.getByRole("button", { name: "Utwórz incydent" });
+  await createButton.click();
+  await expect(panel.getByRole("alert")).toContainText(/odśwież listę/u);
+  await expect(createButton).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "POST" && request.path === "/v1/admin/security-incidents").length, 1);
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await expect(createButton).toBeEnabled();
+});
+
+test("security incident writes send expectedRevision and a 409 locks until refresh", async (t) => {
+  const { page, state, login } = await screen(t);
+  const incident = incidentEntry();
+  state.incidents = [incident];
+  state.incidentDetails[incident.incidentId] = incidentDetails(incident);
+  await login();
+  const panel = page.locator(".admin-security-queue");
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.getByRole("button", { name: "Potwierdź świadomość 72 godzin" }).click();
+  await expect(panel.getByRole("button", { name: "Świadomość potwierdzona" })).toBeDisabled();
+  const awareness = state.requests.filter((request) => request.method === "PATCH" && request.path.includes("security-incidents")).at(-1);
+  assert.equal(awareness.body.expectedRevision, 0);
+  state.handler = async (route) => { if (route.request().url().includes("/v1/admin/security-incidents/") && route.request().method() === "PATCH") { await route.fulfill({ status: 409, json: { error: { code: "security_incident_revision_conflict" } } }); return true; } return false; };
+  const classification = panel.locator("form").filter({ hasText: "Klasyfikacja" }).first();
+  await classification.getByRole("combobox").selectOption("breach_confirmed");
+  await classification.getByRole("textbox").fill("Ocena po potwierdzeniu świadomości");
+  await classification.getByRole("button", { name: "Zapisz klasyfikację" }).click();
+  await expect(panel.getByRole("alert")).toContainText("Odśwież listę");
+  await expect(classification.getByRole("button", { name: "Zapisz klasyfikację" })).toBeDisabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await expect(panel.getByRole("heading", { name: "Do oceny", exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await expect(panel.locator("form").filter({ hasText: "Klasyfikacja" }).first().getByRole("button", { name: "Zapisz klasyfikację" })).toBeEnabled();
+});
+
+test("security incident copy explains manual UODO handling and unknown SMTP is explicit", async (t) => {
+  const { page, state, login } = await screen(t);
+  const incident = incidentEntry({ classification: "breach_confirmed", awarenessAt: "2026-09-07T08:00:00Z", authorityDeadlineAt: "2026-09-10T08:00:00Z", authorityDecision: "not_required", subjectDecision: "required", subjectNotificationStatus: "prepared" });
+  state.incidents = [incident];
+  state.incidentDetails[incident.incidentId] = incidentDetails({ ...incident, preparedRecipients: [{ recipientPseudonym: "recipient-0000000000000000", snapshotVersion: 1 }], subjectNotifications: [{ recipientPseudonym: "recipient-1111111111111111", snapshotVersion: 0 + 1, status: "superseded", deliveryId: "33333333-3333-4333-8333-333333333333" }] });
+  await login();
+  const panel = page.locator(".admin-security-queue");
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Eksport i ręczny dowód dla UODO" }).click();
+  await expect(panel.getByText("System nie wysyła zgłoszeń do UODO. Zapisuje wyłącznie ręczny dowód.", { exact: true })).toBeVisible();
+  await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  await expect(panel.getByText("Te próby dotyczą wcześniejszej wersji zawiadomienia i są nieaktywne.", { exact: true })).toBeVisible();
+  state.handler = async (route) => { if (route.request().url().includes("/v1/admin/security-incidents/") && route.request().method() === "PATCH") { await route.fulfill({ status: 503, json: { error: { code: "security_incident_email_unavailable" } } }); return true; } return false; };
+  await panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" }).click();
+  await expect(panel.getByRole("alert")).toContainText("SMTP");
+  await expect(panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" })).toBeDisabled();
+});
+
+test("late incident details cannot restore sensitive UI after logout", async (t) => {
+  const { page, state, login } = await screen(t);
+  const incident = incidentEntry();
+  state.incidents = [incident];
+  state.incidentDetails[incident.incidentId] = incidentDetails({ ...incident, details: "Nie powinno wrócić po wylogowaniu" });
+  await login();
+  let finish;
+  state.handler = async (route) => { if (route.request().url().includes(`/v1/admin/security-incidents/${incident.incidentId}`) && route.request().method() === "GET") { await new Promise((resolve) => { finish = resolve; }); await route.fulfill({ json: { incident: state.incidentDetails[incident.incidentId] } }).catch(() => {}); return true; } return false; };
+  await page.locator(".admin-security-queue").getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await expect.poll(() => Boolean(finish)).toBe(true);
+  state.handler = null;
+  await page.getByRole("button", { name: "Wyloguj się" }).click();
+  await expect(page.getByLabel("Adres e-mail")).toBeVisible();
+  finish();
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await expect(page.locator(".security-incident-detail")).toHaveCount(0);
+});
+
+test("public privacy page submits non-enumerating intake and consumes a fragment token", async (t) => {
+  const context = await browser.newContext();
+  t.after(() => context.close());
+  const page = await context.newPage();
+  const bodies = [];
+  await page.route(`${api}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    bodies.push(route.request().postDataJSON());
+    if (path.endsWith("/session")) return route.fulfill({ json: { sessionToken: "s".repeat(32) } });
+    if (path.endsWith("/response")) return route.fulfill({ json: { request: privacyEntry("fulfilled", 4), response: "Gotowa odpowiedź", responseAvailableUntil: "2026-10-04T08:00:00Z", complaintInformationIncluded: true } });
+    return route.fulfill({ status: 202, json: { status: "accepted" } });
+  });
+  await page.goto(`${origin}/privacy-request`);
+  await page.getByLabel("Adres e-mail").fill("guest@example.com");
+  await page.getByRole("button", { name: "Wyślij wniosek" }).click();
+  await expect(page.getByText(/Jeśli adres może zostać powiązany/u)).toBeVisible();
+  await page.goto(`${origin}/privacy-request/pr_11111111-1111-4111-8111-111111111111#token=${"t".repeat(32)}`);
+  await expect(page.getByText("Gotowa odpowiedź")).toBeVisible();
+  assert.deepEqual(bodies.at(-2), { token: "t".repeat(32) });
+  assert.deepEqual(bodies.at(-1), { sessionToken: "s".repeat(32) });
+  assert.equal(page.url().includes("#token="), false);
 });
 
 test("delayed logout prevents another authentication operation", async (t) => {
@@ -333,12 +669,13 @@ test("token timeout locks writes and a late token cannot issue a stale request",
   await login(); await ready();
   await page.clock.install();
   await page.evaluate(() => { adminTestAuth.tokenMode = "pending"; });
+  const requestsBeforeRefresh = state.requests.length;
   await page.getByRole("button", { name: "Odśwież kolejkę" }).click();
   await page.clock.runFor(12001);
   await expect(page.getByRole("alert")).toContainText("Przekroczono czas");
   await expect(page.getByRole("button", { name: "Rozpocznij analizę" })).toBeDisabled();
   await page.evaluate(() => { adminTestAuth.tokens.forEach((finish) => finish()); adminTestAuth.tokenMode = "success"; });
-  assert.equal(state.requests.length, 1);
+  assert.equal(state.requests.length, requestsBeforeRefresh);
   await page.getByRole("button", { name: "Odśwież kolejkę" }).click();
   await ready();
 });
