@@ -1,6 +1,20 @@
 # Patternly Web
 
-React/Vite surface for Patternly. The homepage introduces interview and certification practice through one
+## Canonical product boundary
+
+The hosted Patternly web is a marketing brochure for the mobile application. It introduces interview and certification practice through a bounded interactive example, concise practice method, a curated track selection and an expandable catalogue of all nine release tracks. It does not provide user sign-in, account state, learning state, privacy/data-rights intake, private response delivery or another application runtime.
+
+All user privacy, data-rights, recovery and account operations start only inside the mobile application under `Settings`.
+
+The administrator panel is an internal Product Owner tool. It runs only on loopback with the local backend and emulators. It must never be hosted, linked from the public page, included in the public deployment bundle or exposed as a public route. `noindex`, a hidden link or unavailable production configuration is not an acceptable substitute for excluding it.
+
+## Current implementation gap
+
+The current checkout does not yet satisfy this boundary. It still builds an administrator entry, documents and configures a hosted `/admin` route, and serves `/privacy-request` routes for public browser intake and response delivery. These paths describe current implementation evidence only; they are scheduled for removal or separation under EPIC-04, EPIC-05, BE-DEC-003 and `WEB-BOUNDARY-001`. Do not preserve them as product requirements or use them as a template for new work.
+
+## Current public implementation
+
+The current homepage introduces interview and certification practice through one
 interactive SQL example, a concise practice method, eight learning tracks, and the administrator entry point.
 Track SVGs in `assets/icons` are copied unchanged from the mobile app’s
 `src/assets/icons`, using its `SelectTrackScreen` icon mapping.
@@ -97,7 +111,9 @@ they are not active-user or session analytics. The backend owns publication
 configuration and administrator authorization. Admin-specific styles live in
 `admin.css`; public page typography does not control the dashboard.
 
-## Production boundary
+## Legacy production boundary — pending removal
+
+The following section documents the currently deployed/buildable shape for diagnosis and removal. It is not the target product boundary. The target is defined at the top of this README.
 
 The administrator route reads its build-time configuration from `.env` (start
 with `.env.example`): `VITE_ADMIN_FIREBASE_API_KEY`,
