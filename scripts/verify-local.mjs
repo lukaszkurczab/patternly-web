@@ -94,7 +94,7 @@ assert.equal(isCanonicalAdminPath("/admin/"), false);
 assert.equal(isCanonicalAdminPath("/admin.html"), false);
 assert.match(sourceApp, /isCanonicalAdminPath\(window\.location\.pathname\)/u);
 assert.doesNotMatch(sourceApp, /startsWith\(["']\/admin\//u);
-assert.match(sourceApp, /document\.title = admin \? "Patternly — Administracja" : "Patternly — Build confidence through practice"/u);
+assert.match(sourceApp, /document\.title = admin \? "Patternly — Administracja" : privacyRequest \? "Patternly — Wniosek dotyczący danych" : "Patternly — Build confidence through practice";/u);
 assert.match(sourcePublicPage, /<main id="main-content" tabIndex=\{-1\}>/u);
 assert.match(sourceQuestions, /type="radio"/u);
 assert.match(sourceQuestions, /role="radiogroup"/u);
