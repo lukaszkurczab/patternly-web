@@ -187,11 +187,12 @@ h3 { font-size: 19px; font-weight: 620; line-height: 1.3; margin-bottom: 9px; }
 .step-content p { color: var(--text-secondary); font-size: 14px; line-height: 22px; margin-bottom: 0; }
 .step-emphasis { color: var(--mint) !important; font-weight: 600; }
 .tracks-section { padding-bottom: 136px; }
-.track-atlas { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 64px; }
+.track-atlas { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 64px; }
 .track-card { background: linear-gradient(150deg, rgba(22, 34, 57, .88), rgba(17, 27, 46, .72)); border: 1px solid var(--border); border-radius: var(--radius-md); display: flex; flex-direction: column; min-height: 184px; overflow: hidden; padding: 24px; position: relative; transition: border-color .28s ease, background .28s ease, transform .28s var(--ease-out); }
 .track-card::after { background: linear-gradient(90deg, rgba(94, 234, 212, .64), transparent); content: ""; height: 1px; left: 24px; opacity: .36; position: absolute; right: 24px; top: 0; }
 .track-card h3 { font-size: 17px; line-height: 1.3; margin: 0; }
 .track-card > div > p { color: var(--text-muted); font-family: var(--font-body); font-size: 14px; line-height: 1.5; margin: 9px 0 0; }
+.track-card > div > .track-legal-note { font-size: 12px; }
 .track-icon { align-items: center; background: var(--surface); border: 1px solid var(--mint); border-radius: 12px; color: var(--mint); display: flex; flex: 0 0 48px; height: 48px; justify-content: center; margin-bottom: 28px; width: 48px; }
 .track-icon > svg { display: block; height: 32px; width: 32px; }
 .track-atlas-action { display: flex; justify-content: center; margin-top: 34px; }

@@ -6,6 +6,7 @@ import serverStackIcon from "../../assets/icons/server-stack.svg?raw";
 import cloudIcon from "../../assets/icons/cloud.svg?raw";
 import settingsIcon from "../../assets/icons/settings.svg?raw";
 import cpuIcon from "../../assets/icons/cpu.svg?raw";
+import sparkleIcon from "../../assets/icons/sparkle.svg?raw";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "../components/Brand";
 import { InteractiveQuestion } from "../components/InteractiveQuestion";
@@ -20,6 +21,7 @@ const tracks = [
   { name: "AWS Certified Solutions Architect – Associate", focus: "Choose AWS services for real-world needs.", iconName: "cloud", svg: cloudIcon },
   { name: "Microsoft Azure Administrator Associate (AZ-104)", focus: "Practice setting up and troubleshooting Azure.", iconName: "settings", svg: settingsIcon },
   { name: "Microsoft Azure AI Fundamentals (AI-901)", focus: "Learn AI concepts and when to use Azure AI services.", iconName: "cpu", svg: cpuIcon },
+  { name: "Claude Certified Architect – Professional", focus: "Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery.", legalNote: "Independent study content. Not affiliated with or endorsed by Anthropic.", iconName: "sparkle", svg: sparkleIcon },
 ];
 
 function Header() {
@@ -124,7 +126,7 @@ function TracksSection() {
       <Reveal className="section-intro centered">
         <p className="eyebrow">Find your focus</p>
         <h2 id="tracks-title">What are you preparing for?</h2>
-        <p>Explore eight learning tracks for coding interviews, system design, and cloud certifications.</p>
+        <p>Explore nine learning tracks for coding interviews, system design, cloud and AI certifications.</p>
       </Reveal>
       <Reveal className="track-atlas reveal-delay">
         {tracks.map((track) => (
@@ -135,7 +137,7 @@ function TracksSection() {
               data-track-icon={track.iconName}
               dangerouslySetInnerHTML={{ __html: track.svg }}
             />
-            <div><h3>{track.name}</h3><p>{track.focus}</p></div>
+            <div><h3>{track.name}</h3><p>{track.focus}</p>{track.legalNote ? <p className="track-legal-note">{track.legalNote}</p> : null}</div>
           </article>
         ))}
       </Reveal>

@@ -6,7 +6,7 @@ The hosted site is a marketing brochure for the Patternly mobile app. It contain
 
 The administrator panel is a local Product Owner tool. It runs on loopback with the local backend and Firebase Auth/Firestore emulators. Firebase Authentication and backend administrator authorization protect its operations. It is not built into `dist` or deployed to Firebase Hosting.
 
-The public catalogue currently contains eight tracks, while the canonical release plan calls for nine. EPIC-05 tracks this content discrepancy separately from the WEB-01 deployment boundary.
+The public catalogue contains all nine canonical release tracks, including independent Claude Architect Professional practice. It does not claim Anthropic affiliation.
 
 ## Public site
 

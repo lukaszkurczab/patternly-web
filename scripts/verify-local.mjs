@@ -53,7 +53,11 @@ try {
   const { PublicPage } = await ssr.ssrLoadModule("/src/pages/PublicPage.jsx");
   const html = renderToStaticMarkup(createElement(PublicPage));
   assert.match(html, /Build /u);
-  assert.equal((html.match(/class="track-card"/gu) || []).length, 8);
+  assert.equal((html.match(/class="track-card"/gu) || []).length, 9);
+  assert.match(html, /Claude Certified Architect – Professional/u);
+  assert.match(html, /Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery\./u);
+  assert.match(html, /Independent study content\. Not affiliated with or endorsed by Anthropic\./u);
+  assert.equal((html.match(/data-track-icon="sparkle"/gu) || []).length, 1);
   assert.equal((html.match(/role="radiogroup"/gu) || []).length, 1);
   assert.doesNotMatch(html, /href="\/admin"|privacy-request/u);
 } finally { await ssr.close(); }
