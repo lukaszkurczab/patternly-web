@@ -21,40 +21,24 @@ function redirectAdminAliases(server) {
   });
 }
 
-function canonicalAdminRoutePlugin() {
+function localAdminRoutePlugin() {
   return {
-    name: "patternly-canonical-admin-route",
+    name: "patternly-local-admin-route",
     configureServer(server) {
       redirectAdminAliases(server);
-      server.middlewares.use((request, _response, next) => {
-        const pathname = new URL(request.url || "/", "http://patternly.local").pathname;
-        if (pathname === "/privacy-request" || pathname.startsWith("/privacy-request/")) request.url = "/index.html";
-        next();
-      });
-    },
-    configurePreviewServer(server) {
-      redirectAdminAliases(server);
-      server.middlewares.use((request, _response, next) => {
-        const pathname = new URL(request.url || "/", "http://patternly.local").pathname;
-        if (pathname === "/privacy-request" || pathname.startsWith("/privacy-request/")) request.url = "/index.html";
-        next();
-      });
     },
   };
 }
 
 export default defineConfig({
   appType: "mpa",
-  plugins: [canonicalAdminRoutePlugin()],
+  plugins: [localAdminRoutePlugin()],
   esbuild: {
     jsx: "automatic",
   },
   build: {
     rollupOptions: {
-      input: {
-        public: resolve(projectRoot, "index.html"),
-        admin: resolve(projectRoot, "admin.html"),
-      },
+      input: resolve(projectRoot, "index.html"),
     },
   },
 });

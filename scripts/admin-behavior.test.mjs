@@ -565,29 +565,6 @@ test("late incident details cannot restore sensitive UI after logout", async (t)
   await expect(page.locator(".security-incident-detail")).toHaveCount(0);
 });
 
-test("public privacy page submits non-enumerating intake and consumes a fragment token", async (t) => {
-  const context = await browser.newContext();
-  t.after(() => context.close());
-  const page = await context.newPage();
-  const bodies = [];
-  await page.route(`${api}/**`, async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    bodies.push(route.request().postDataJSON());
-    if (path.endsWith("/session")) return route.fulfill({ json: { sessionToken: "s".repeat(32) } });
-    if (path.endsWith("/response")) return route.fulfill({ json: { request: privacyEntry("fulfilled", 4), response: "Gotowa odpowiedź", responseAvailableUntil: "2026-10-04T08:00:00Z", complaintInformationIncluded: true } });
-    return route.fulfill({ status: 202, json: { status: "accepted" } });
-  });
-  await page.goto(`${origin}/privacy-request`);
-  await page.getByLabel("Adres e-mail").fill("guest@example.com");
-  await page.getByRole("button", { name: "Wyślij wniosek" }).click();
-  await expect(page.getByText(/Jeśli adres może zostać powiązany/u)).toBeVisible();
-  await page.goto(`${origin}/privacy-request/pr_11111111-1111-4111-8111-111111111111#token=${"t".repeat(32)}`);
-  await expect(page.getByText("Gotowa odpowiedź")).toBeVisible();
-  assert.deepEqual(bodies.at(-2), { token: "t".repeat(32) });
-  assert.deepEqual(bodies.at(-1), { sessionToken: "s".repeat(32) });
-  assert.equal(page.url().includes("#token="), false);
-});
-
 test("delayed logout prevents another authentication operation", async (t) => {
   const { page, login, ready } = await screen(t);
   await login(); await ready();
