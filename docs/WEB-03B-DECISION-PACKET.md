@@ -1,6 +1,6 @@
 # WEB-03B — kontrakt guest privacy przed usunięciem publicznego API
 
-**Status:** `blocking` — brak zatwierdzonego kanału guest i nie-webowego potwierdzenia. Ten dokument nie zmienia kanonicznej kolejności w `../../docs/PATTERNLY-WORKING-PLAN.md`.
+**Status:** kanał zatwierdzony przez PO: formularz wyłącznie w aplikacji. Kontrakt techniczny i implementacja pozostają otwarte. Ten dokument nie zmienia kanonicznej kolejności w `../../docs/PATTERNLY-WORKING-PLAN.md`.
 
 ## Potwierdzone fakty
 
@@ -9,14 +9,18 @@
 - Backend nadal ma `/v1/public/privacy-requests`, `/session`, `/response`, `PUBLIC_PRIVACY_ORIGIN`, linki e-mail do `/privacy-request/<id>#token=...` i lokalną kolejkę PO. Publiczny web usunięto z builda w WEB-01; samo API pozostaje legacy.
 - Decyzja APPCHK wymaga App Check dla chronionych żądań mobilnych, także gościa. ODK-116 blokuje prawdziwy kontakt operatora/wspierającego.
 
-## Decyzja PO potrzebna do implementacji
+## Decyzja PO
+
+PO wybrał formularz w aplikacji. Publiczny web ma pozostać marketingowy, bez logowania i zarządzania kontem. Weryfikacja i odpowiedzi dotyczące wniosku gościa również muszą odbywać się bez webowego formularza lub sesji.
+
+## Rozpatrzone kanały
 
 Wybrać dokładnie jeden kanał gościa:
 
 1. Formularz w Settings: API mobilne pod App Check, weryfikacja e-mail wracająca do aplikacji, jawne stany unavailable/retry i idempotencja.
 2. E-mail inicjowany z Settings na rzeczywisty adres operatora, z ręczną obsługą i odpowiedzią e-mail, bez webowego tokenu/sesji. Trzeba potwierdzić, czy otwarcie klienta pocztowego spełnia wymaganie „in-app” BE-DEC-003 i jak aplikacja sygnalizuje wynik, którego nie może potwierdzić.
 
-PO musi także podać publikowalny adres kontaktowy, jeśli wybierze kanał e-mail. Nie należy zastępować go adresem testowym ani obiecywać wysłania po samym otwarciu klienta pocztowego.
+Wybrano wariant 1. Wariant 2 nie jest ścieżką produktową.
 
 ## Wymagania niezależne od wyboru
 
