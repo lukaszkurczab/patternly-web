@@ -49,15 +49,15 @@ WEB-03 jest podzielony na trzy małe kroki. Pierwszy nie zależy od nowego kontr
 - **Weryfikacja / dowód:** `npm run verify:local`, porównanie ikony i copy z aplikacją, niezależny QA; raport `docs/WEB-03A-REPORT.md`.
 - **Ryzyko:** opis niezależnego contentu nie może sugerować afiliacji z Anthropic.
 
-### WEB-03B — kanał guest privacy i usunięcie publicznego API (`blocking`)
+### WEB-03B — kanał guest privacy i usunięcie publicznego API (`done` lokalnie)
 
 - **Cel:** brak publicznego web intake, verification-link i response delivery; prawdziwe ścieżki w aplikacji i lokalny workflow PO pozostają dostępne.
 - **Zakres:** usunąć lub zastąpić backendową rodzinę `/v1/public/privacy-requests`, publiczne linki i konfigurację zależne od niej; zaktualizować OpenAPI, testy oraz dokumentację po potwierdzeniu kontraktu aplikacji.
 - **Poza zakresem:** nowa webowa ścieżka wniosków oraz release provider evidence.
-- **Wejście:** BE-DEC-003, gotowy i przetestowany kontrakt mobilnego guest privacy z EPIC-04, kod backendu i aktualny Settings. Obecny `guestSupport` otwiera zewnętrzny `supportUrl` HTTPS i nie stanowi dowodu in-app request/verification; prawdziwy kontakt PO należy do ODK-116.
+- **Wejście:** BE-DEC-003, zatwierdzony kontrakt mobilnego guest privacy z EPIC-04, kod backendu i Settings. Ścieżkę `guestSupport` zastąpił formularz aplikacyjny; prawdziwy kontakt PO należy do ODK-116.
 - **Akceptacja:** publiczny browser nie może rozpocząć, potwierdzić ani odebrać wniosku; mobilny guest i authenticated mają działające, odrębne ścieżki; lokalna kolejka PO działa; brak osieroconych linków w mailach, OpenAPI i docs.
-- **Weryfikacja / dowód:** testy kontraktowe negatywne i mobile/backend E2E dla obu stanów, test lokalnej kolejki admina; raport `docs/WEB-03B-REPORT.md`.
-- **Ryzyko:** proste usunięcie endpointów odbierze gościom kanał obsługi praw, zanim nowy flow będzie gotowy. Do tego czasu publiczne API pozostaje niespójnym legacy, które nie może być podstawą release.
+- **Weryfikacja / dowód:** testy kontraktowe negatywne i mobilny klient/backend na emulatorach dla obu stanów, lokalny build i QA; raport `docs/WEB-03B-REPORT.md`.
+- **Ryzyko:** pozostaje potwierdzenie interakcji na urządzeniu i zdalnego hostingu w odrębnych bramkach.
 
 ### WEB-03C — wdrożenie i zdalna weryfikacja (`planned`)
 
@@ -69,4 +69,4 @@ WEB-03 jest podzielony na trzy małe kroki. Pierwszy nie zależy od nowego kontr
 - **Weryfikacja / dowód:** direct HTTP checks i manifest builda, raport `docs/WEB-03C-REPORT.md`.
 - **Ryzyko:** lokalne testy nie dowodzą aktualnej zawartości hostingu.
 
-Następny task: WEB-03B po decyzji PO o kanale guest privacy i dowodzie jego działania w aplikacji. Backendowe usunięcie publicznego API wymaga tej alternatywy.
+Następny task: WEB-03C — wdrożenie i zdalna weryfikacja marketingowego hostingu.
