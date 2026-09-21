@@ -1,4 +1,4 @@
-export const ADMIN_UNAVAILABLE_MESSAGE = "Panel jest niedostępny: brakuje środowiskowej konfiguracji Firebase lub API.";
+export const ADMIN_UNAVAILABLE_MESSAGE = "Panel jest dostępny tylko lokalnie z konfiguracją Firebase Auth, API i emulatorów.";
 
 const environment = import.meta.env || {};
 
@@ -40,33 +40,11 @@ function isFirebaseConfig(value) {
   );
 }
 
-function isHttpsOrigin(value) {
-  if (!isNonEmptyString(value)) return false;
-
-  const candidate = value.trim();
-  if (candidate.includes("?") || candidate.includes("#")) return false;
-
-  try {
-    const url = new URL(candidate);
-    return url.protocol === "https:"
-      && url.pathname === "/"
-      && !url.username
-      && !url.password
-      && !url.search
-      && !url.hash;
-  } catch {
-    return false;
-  }
-}
-
 export function getAdminConfigurationError(config, apiOrigin, options = {}) {
-  if (options.authEmulatorOrigin !== undefined && options.authEmulatorOrigin !== "") {
-    return isFirebaseConfig(config) && options.development === true
-      && loopbackHosts.has(options.hostname)
-      && config.projectId === "demo-patternly-admin"
-      && isLocalHttpOrigin(apiOrigin)
-      && isLocalHttpOrigin(options.authEmulatorOrigin)
-      ? "" : ADMIN_UNAVAILABLE_MESSAGE;
-  }
-  return isFirebaseConfig(config) && isHttpsOrigin(apiOrigin) ? "" : ADMIN_UNAVAILABLE_MESSAGE;
+  return isFirebaseConfig(config) && options.development === true
+    && loopbackHosts.has(options.hostname)
+    && config.projectId === "demo-patternly-admin"
+    && isLocalHttpOrigin(apiOrigin)
+    && isLocalHttpOrigin(options.authEmulatorOrigin)
+    ? "" : ADMIN_UNAVAILABLE_MESSAGE;
 }

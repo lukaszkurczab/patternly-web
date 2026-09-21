@@ -26,7 +26,10 @@ test("local origins reject remote destinations and ambiguous URLs", () => {
   }
 });
 
-test("production configuration continues to require HTTPS without emulator configuration", () => {
-  assert.equal(getAdminConfigurationError(config, "https://api.example"), "");
+test("remote or production administrator configuration is unavailable", () => {
+  assert.notEqual(getAdminConfigurationError(config, "https://api.example"), "");
   assert.notEqual(getAdminConfigurationError(config, api), "");
+  assert.notEqual(getAdminConfigurationError(config, "https://api.example", local), "");
+  assert.notEqual(getAdminConfigurationError(config, api, { ...local, development: false }), "");
+  assert.notEqual(getAdminConfigurationError({ ...config, projectId: "patternly-app-sandbox" }, api, local), "");
 });

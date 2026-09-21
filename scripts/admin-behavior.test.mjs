@@ -11,7 +11,7 @@ import viteConfig from "../vite.config.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.env.ADMIN_BEHAVIOR_PORT || 25188);
 const origin = `http://127.0.0.1:${port}`;
-const api = "https://admin-api.test";
+const api = "http://127.0.0.1:28080";
 let server;
 let browser;
 const entry = (status = "open", id = "11111111-1111-4111-8111-111111111111") => ({
@@ -192,9 +192,10 @@ before(async () => {
     define: Object.fromEntries(Object.entries({
       VITE_ADMIN_FIREBASE_API_KEY: "component-test-key",
       VITE_ADMIN_FIREBASE_AUTH_DOMAIN: "auth.test",
-      VITE_ADMIN_FIREBASE_PROJECT_ID: "component-test",
+      VITE_ADMIN_FIREBASE_PROJECT_ID: "demo-patternly-admin",
       VITE_ADMIN_FIREBASE_APP_ID: "component-test-app",
       VITE_ADMIN_API_ORIGIN: api,
+      VITE_ADMIN_AUTH_EMULATOR_ORIGIN: "http://127.0.0.1:29199",
     }).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
   });
   await server.listen();

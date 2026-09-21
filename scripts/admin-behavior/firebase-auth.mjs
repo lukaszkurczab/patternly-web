@@ -19,6 +19,10 @@ const control = {
 };
 globalThis.adminTestAuth = control;
 export const getAuth = () => auth;
+export const connectAuthEmulator = (_auth, origin) => {
+  const parsed = new URL(origin);
+  auth.emulatorConfig = { protocol: parsed.protocol.replace(":", ""), host: parsed.hostname, port: Number(parsed.port) };
+};
 export const onAuthStateChanged = (_auth, callback) => {
   listener = callback;
   queueMicrotask(() => listener?.(auth.currentUser));
