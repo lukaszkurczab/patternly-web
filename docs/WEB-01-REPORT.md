@@ -1,6 +1,6 @@
 # WEB-01 — publiczny artefakt marketingowy
 
-**Stan:** implementacja lokalna i focused verification ukończone; niezależny QA w toku. Nie wykonano zdalnego deployu.
+**Stan:** `done` dla lokalnego zakresu WEB-01. Nie wykonano zdalnego deployu.
 
 ## Brief i decyzja
 
@@ -22,7 +22,9 @@
 | --- | --- |
 | `npm run verify:local` | `PASS`: build, skan `dist`, SSR marketingu, lokalne `/admin`, 404 dla publicznych `/admin*` i `/privacy-request*` w preview. |
 | `npm run test:admin-config` | `PASS`: 3 testy konfiguracji. |
-| `npm run test:admin-behavior` | Nie wykonał testów: brak zainstalowanej binarki Playwright Chromium. Próba przez systemowy Chrome zakończyła się `SIGABRT` podczas startu w tym środowisku. Nie jest to zielony dowód regresji panelu. |
+| `npm run test:admin-behavior` | `PASS`: 34/34 w Playwright Chromium uruchomionym poza sandboxem macOS. Początkowe próby w sandboxie kończyły się przed testami przez odmowę MachPort; log końcowego runu: `/tmp/patternly-web-admin-test-escalated.log`. |
+
+Niezależny QA ocenił architekturę 0,92, prostotę 0,88, kontrolę ryzyka 0,83 i utrzymywalność 0,86; minimum **0,83**. Potwierdził czystość `dist` oraz granicę tras. Wcześniejszy brak browser evidence został domknięty końcowym runem 34/34.
 
 ## Ograniczenia i następny task
 
