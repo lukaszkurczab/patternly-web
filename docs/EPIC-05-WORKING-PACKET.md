@@ -6,7 +6,7 @@
 
 Publiczny artefakt webowy ma zawierać wyłącznie stronę marketingową. Panel administratora działa lokalnie na loopback z Firebase Authentication, autoryzacją backendu i emulatorami. Wnioski użytkowników dotyczące danych i prywatności zaczynają się w aplikacji mobilnej w Settings.
 
-Na wejściu WEB-01–03 były `planned`. WEB-01 ma obecnie lokalny raport i zielone testy; opis starego stanu pozostaje punktem odniesienia. Wcześniej kod budował `admin.html` razem z `index.html`, wspólny `src/main.jsx` importował stronę administratora i `PrivacyRequestPage`, `firebase.json` publikował ścieżki admin/privacy, a stopka publiczna linkowała `/admin`. Backend nadal ma rodzinę `/v1/public/privacy-requests` oraz lokalny launcher admina.
+Na wejściu WEB-01–03 były `planned`. WEB-01 i WEB-02 mają obecnie lokalne raporty i zielone testy; opis starego stanu pozostaje punktem odniesienia. Wcześniej kod budował `admin.html` razem z `index.html`, wspólny `src/main.jsx` importował stronę administratora i `PrivacyRequestPage`, `firebase.json` publikował ścieżki admin/privacy, a stopka publiczna linkowała `/admin`. Backend nadal ma rodzinę `/v1/public/privacy-requests` oraz lokalny launcher admina.
 
 ## Reguły wykonania
 
@@ -25,14 +25,14 @@ Na wejściu WEB-01–03 były `planned`. WEB-01 ma obecnie lokalny raport i ziel
 - **Weryfikacja / dowód:** build, automatyczna inspekcja całego `dist`, direct-request checks lokalnego preview, focused test strony i porównanie Firebase Hosting config; raport `docs/WEB-01-REPORT.md`.
 - **Ryzyko:** wspólny chunk lub publiczny asset może nadal zawierać prywatny kod mimo rozdzielenia HTML.
 
-## WEB-02 — lokalny panel administratora (`partial`)
+## WEB-02 — lokalny panel administratora (`done` lokalnie)
 
 - **Cel:** panel jest używalny wyłącznie na loopback z lokalnym backendem i emulatorami.
 - **Zakres:** dopiąć lokalny entry point, konfigurację i dokumentację; zweryfikować Firebase Authentication, autoryzację backendu, dostęp do kolejek oraz odmowę poza loopback.
 - **Poza zakresem:** cloud admin i publikowanie panelu.
 - **Wejście:** lokalny launcher backendu, `src/pages/AdminPage.jsx`, `src/adminConfig.js`, testy admina i `../patternly-backend/docs/local-admin.md`.
 - **Akceptacja:** lokalny flow logowania i odczytu działa; brak konfiguracji lub niewłaściwy origin daje jawny stan niedostępności; backend egzekwuje administratora; publiczny build nie zawiera panelu.
-- **Weryfikacja / dowód:** testy konfiguracji, admin behavior, emulator smoke oraz negatywne sprawdzenie hosta; raport `docs/WEB-02-REPORT.md`.
+- **Weryfikacja / dowód:** testy konfiguracji, admin behavior, rzeczywisty emulator smoke na izolowanych portach, negatywne sprawdzenie hosta i niezależny QA; raport `docs/WEB-02-REPORT.md`.
 - **Ryzyko:** bieżące, cudze zmiany lokalnego launchera backendu wymagają uzgodnienia przed edycją.
 
 ## WEB-03 — domknięcie marketingu i privacy (`partial`)
@@ -69,4 +69,4 @@ WEB-03 jest podzielony na trzy małe kroki. Pierwszy nie zależy od nowego kontr
 - **Weryfikacja / dowód:** direct HTTP checks i manifest builda, raport `docs/WEB-03C-REPORT.md`.
 - **Ryzyko:** lokalne testy nie dowodzą aktualnej zawartości hostingu.
 
-Następny task: WEB-02. Backendowe usunięcie w WEB-03 wymaga najpierw dowodu, że aplikacja ma alternatywny, działający kanał.
+Następny task: WEB-03B po decyzji PO o kanale guest privacy i dowodzie jego działania w aplikacji. Backendowe usunięcie publicznego API wymaga tej alternatywy.

@@ -5,7 +5,20 @@ import { fileURLToPath } from "node:url";
 import { chromium, expect } from "playwright/test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const credentials = JSON.parse(await readFile(resolve(root, "../patternly-backend/.local/admin/credentials.json"), "utf8"));
+const webOrigin = process.env.ADMIN_LOCAL_WEB_ORIGIN || "http://127.0.0.1:25173";
+const apiOrigin = process.env.ADMIN_LOCAL_API_ORIGIN || "http://127.0.0.1:28080";
+const authOrigin = process.env.ADMIN_LOCAL_AUTH_ORIGIN || "http://127.0.0.1:29199";
+const credentialsPath = process.env.ADMIN_LOCAL_CREDENTIALS_PATH || "../patternly-backend/.local/admin/credentials.json";
+for (const origin of [webOrigin, apiOrigin, authOrigin]) {
+  const url = new URL(origin);
+  assert.equal(url.origin, origin);
+  assert.equal(url.protocol, "http:");
+  assert.equal(url.hostname, "127.0.0.1");
+}
+const allowedPorts = new Set([webOrigin, apiOrigin, authOrigin].map((origin) => new URL(origin).port));
+const apiPort = new URL(apiOrigin).port;
+const authPort = new URL(authOrigin).port;
+const credentials = JSON.parse(await readFile(resolve(root, credentialsPath), "utf8"));
 const browser = await chromium.launch({ headless: true,
   ...(process.env.ADMIN_BROWSER_EXECUTABLE ? { executablePath: process.env.ADMIN_BROWSER_EXECUTABLE } : {}),
 });
@@ -15,7 +28,7 @@ try {
   const requests = [];
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === "127.0.0.1" && ["25173", "28080", "29199"].includes(url.port)) return route.continue();
+    if (url.hostname === "127.0.0.1" && allowedPorts.has(url.port)) return route.continue();
     externalRequests.push(url.origin);
     await route.abort();
   });
@@ -23,12 +36,12 @@ try {
   page.setDefaultTimeout(10000);
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (["28080", "29199"].includes(url.port)) requests.push({ method: response.request().method(), path: url.pathname, port: url.port, status: response.status() });
+    if ([apiPort, authPort].includes(url.port)) requests.push({ method: response.request().method(), path: url.pathname, port: url.port, status: response.status() });
   });
-  await page.goto("http://127.0.0.1:25173/admin");
+  await page.goto(`${webOrigin}/admin`);
   await page.getByLabel("Adres e-mail").fill(credentials.email);
   await page.getByLabel("Hasło").fill(credentials.password);
-  const queueResponse = page.waitForResponse((response) => response.url() === "http://127.0.0.1:28080/v1/admin/content-reports" && response.request().method() === "GET");
+  const queueResponse = page.waitForResponse((response) => response.url() === `${apiOrigin}/v1/admin/content-reports` && response.request().method() === "GET");
   await page.getByRole("button", { name: "Zaloguj się" }).click();
   const response = await queueResponse;
   assert.equal(response.status(), 200);
@@ -50,7 +63,7 @@ try {
   await page.getByRole("button", { name: "Wyloguj się" }).click();
   await expect(page.getByText("Wylogowano.")).toBeVisible();
   assert.deepEqual(externalRequests, [], "Browser must not contact cloud services");
-  assert.ok(requests.some((item) => item.port === "29199" && item.path.endsWith("accounts:signInWithPassword") && item.status === 200));
+  assert.ok(requests.some((item) => item.port === authPort && item.path.endsWith("accounts:signInWithPassword") && item.status === 200));
   console.log(JSON.stringify({ result: "PASS", reportsRead: reports.length, externalRequests: externalRequests.length, requests }));
 } finally {
   await browser.close();
