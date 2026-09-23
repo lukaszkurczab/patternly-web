@@ -4,12 +4,14 @@
 
 Publiczny build zawiera wyłącznie stronę marketingową z dziewięcioma trackami. Panel administratora działa lokalnie na loopback z Firebase Authentication, autoryzacją backendu i emulatorami. Wnioski o dane i prywatność zaczynają się w aplikacji mobilnej.
 
-## WEB-03C — wdrożenie i zdalna weryfikacja (`planned`)
+## WEB-03C — wdrożenie i zdalna weryfikacja (`partial`)
 
 - **Cel:** publiczny hosting serwuje wyłącznie zweryfikowany artefakt marketingowy.
-- **Zakres:** po zgodzie PO opublikować przypięty `dist`, sprawdzić zdalne `/`, `/admin*` i `/privacy-request*`, porównać digesty artefaktu z lokalnym buildem i zapisać rollback.
+- **Zakres:** zgoda PO została udzielona. Lokalnie wyrównano katalog dziewięciu tracków z mobile registry i dodano brakujące noty niezależności pięciu certyfikacji; `verify:local` sprawdza komplet ID, tytułów i not. Pozostałe: dodać prawdziwe read-only Privacy/Terms/Support linki po ODK-116; następnie odświeżyć/porównać `dist`, opublikować wyłącznie Hosting i sprawdzić zdalne `/`, `/admin*`, `/privacy-request*` oraz rollback.
 - **Poza zakresem:** nowa funkcjonalność mobilna i panel hostowany.
-- **Wejście:** zgoda na publikację, właściwy projekt Firebase Hosting i odnowiona sesja Firebase CLI; [przygotowanie](WEB-03C-PREPARATION.md).
-- **Akceptacja:** zdalna strona pokazuje dziewięć tracków; trasy admin/privacy nie są dostępne; raport wiąże wynik z dokładnym buildem i projektem.
+- **Wejście:** zgoda na publikację istnieje; pozostają prawdziwe treści i linki PO-116, właściwy projekt Firebase Hosting i odnowiona sesja Firebase CLI; [preparation z lokalnym dowodem i digestami](WEB-03C-PREPARATION.md).
+- **Akceptacja:** publiczne informacje są prawdziwe i bez placeholderów; zdalna strona pokazuje dziewięć aktualnych tracków i not niezależności; trasy admin/privacy nie są dostępne; raport wiąże wynik z dokładnym buildem, projektem i rollbackiem. Aktualnie lokalny build/SSR/negatywne trasy PASS, lecz zdalny root 404 i brak credentialów uniemożliwiają wdrożenie/odbiór.
 - **Weryfikacja:** direct HTTP checks, manifest builda i raport WEB-03C.
 - **Ryzyko:** lokalne testy nie dowodzą aktualnej zawartości hostingu.
+
+Lokalna walidacja 23.09.2026: `npm run verify:local` PASS. Publiczny root zwraca 404; Firebase CLI 15.19.0 wykrywa `patternly-app-sandbox`, ale odrzuca nieważną sesję (exit 2). ODK-116 nie zawiera prawdziwego publicznego kontaktu ani finalnych danych do treści linkowanych, więc linki nie zostały sfabrykowane. Lokalne Playwright Chromium nie jest zainstalowane, a CUA nie wystartował; wizualny odbiór pozostaje otwarty. Szczegóły i SHA-256 builda w [przygotowaniu](WEB-03C-PREPARATION.md).

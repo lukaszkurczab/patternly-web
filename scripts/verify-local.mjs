@@ -9,6 +9,17 @@ import { createServer, preview } from "vite";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
 const hosting = JSON.parse(await readFile(resolve(root, "firebase.json"), "utf8")).hosting;
+const publicTracks = [
+  ["coding-interview-dsa-problem-solving", "Coding Interview: DSA & Problem Solving"],
+  ["backend-system-design-interview", "Backend System Design Interview"],
+  ["object-oriented-design-interview", "Object-Oriented Design Interview"],
+  ["frontend-system-design-interview", "Frontend System Design Interview"],
+  ["google-cloud-associate-cloud-engineer", "Google Cloud Associate Cloud Engineer", "Independent study content. Not affiliated with or endorsed by Google."],
+  ["aws-certified-solutions-architect-associate", "AWS Certified Solutions Architect - Associate", "Independent study content. Not affiliated with or endorsed by Amazon Web Services."],
+  ["microsoft-azure-administrator-associate-az-104", "Microsoft Azure Administrator Associate AZ-104", "Independent study content. Not affiliated with or endorsed by Microsoft."],
+  ["microsoft-azure-ai-fundamentals-ai-901", "Microsoft Azure AI Fundamentals AI-901", "Independent study content. Not affiliated with or endorsed by Microsoft."],
+  ["claude-certified-architect-professional-certification", "Claude Certified Architect – Professional", "Independent study content. Not affiliated with or endorsed by Anthropic."],
+];
 
 async function files(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -54,9 +65,13 @@ try {
   const html = renderToStaticMarkup(createElement(PublicPage));
   assert.match(html, /Build /u);
   assert.equal((html.match(/class="track-card"/gu) || []).length, 9);
-  assert.match(html, /Claude Certified Architect – Professional/u);
-  assert.match(html, /Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery\./u);
-  assert.match(html, /Independent study content\. Not affiliated with or endorsed by Anthropic\./u);
+  const renderedTrackIds = [...html.matchAll(/data-track-id="([^"]+)"/gu)].map((match) => match[1]);
+  assert.equal(new Set(renderedTrackIds).size, publicTracks.length, "Public track IDs must be unique.");
+  assert.deepEqual(renderedTrackIds, publicTracks.map(([id]) => id), "Public catalog IDs and ordering must match the reviewed mobile registry.");
+  for (const [, title, disclaimer] of publicTracks) {
+    assert.ok(html.includes(title.replaceAll("&", "&amp;")), `Public catalog is missing the reviewed track title: ${title}`);
+    if (disclaimer) assert.ok(html.includes(disclaimer), `Public catalog is missing the independence note for: ${title}`);
+  }
   assert.equal((html.match(/data-track-icon="sparkle"/gu) || []).length, 1);
   assert.equal((html.match(/role="radiogroup"/gu) || []).length, 1);
   assert.doesNotMatch(html, /href="\/admin"|privacy-request/u);

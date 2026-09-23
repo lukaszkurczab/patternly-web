@@ -13,15 +13,15 @@ import { InteractiveQuestion } from "../components/InteractiveQuestion";
 import { Reveal } from "../hooks/useReveal";
 
 const tracks = [
-  { name: "Coding Interview: DSA & Problem Solving", focus: "Find an approach to unfamiliar coding problems.", iconName: "route", svg: routeIcon },
-  { name: "Backend System Design Interview", focus: "Design reliable systems and explain your choices.", iconName: "database", svg: databaseIcon },
-  { name: "Object-Oriented Design Interview", focus: "Turn requirements into clear, flexible object designs.", iconName: "grid", svg: gridIcon },
-  { name: "Frontend System Design Interview", focus: "Plan interfaces that stay fast as they grow.", iconName: "device-phone", svg: devicePhoneIcon },
-  { name: "Google Cloud Associate Cloud Engineer", focus: "Practice running and managing Google Cloud services.", iconName: "server-stack", svg: serverStackIcon },
-  { name: "AWS Certified Solutions Architect – Associate", focus: "Choose AWS services for real-world needs.", iconName: "cloud", svg: cloudIcon },
-  { name: "Microsoft Azure Administrator Associate (AZ-104)", focus: "Practice setting up and troubleshooting Azure.", iconName: "settings", svg: settingsIcon },
-  { name: "Microsoft Azure AI Fundamentals (AI-901)", focus: "Learn AI concepts and when to use Azure AI services.", iconName: "cpu", svg: cpuIcon },
-  { name: "Claude Certified Architect – Professional", focus: "Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery.", legalNote: "Independent study content. Not affiliated with or endorsed by Anthropic.", iconName: "sparkle", svg: sparkleIcon },
+  { id: "coding-interview-dsa-problem-solving", name: "Coding Interview: DSA & Problem Solving", focus: "Find an approach to unfamiliar coding problems.", iconName: "route", svg: routeIcon },
+  { id: "backend-system-design-interview", name: "Backend System Design Interview", focus: "Design reliable systems and explain your choices.", iconName: "database", svg: databaseIcon },
+  { id: "object-oriented-design-interview", name: "Object-Oriented Design Interview", focus: "Turn requirements into clear, flexible object designs.", iconName: "grid", svg: gridIcon },
+  { id: "frontend-system-design-interview", name: "Frontend System Design Interview", focus: "Plan interfaces that stay fast as they grow.", iconName: "device-phone", svg: devicePhoneIcon },
+  { id: "google-cloud-associate-cloud-engineer", name: "Google Cloud Associate Cloud Engineer", focus: "Practice running and managing Google Cloud services.", legalNote: "Independent study content. Not affiliated with or endorsed by Google.", iconName: "server-stack", svg: serverStackIcon },
+  { id: "aws-certified-solutions-architect-associate", name: "AWS Certified Solutions Architect - Associate", focus: "Choose AWS services for real-world needs.", legalNote: "Independent study content. Not affiliated with or endorsed by Amazon Web Services.", iconName: "cloud", svg: cloudIcon },
+  { id: "microsoft-azure-administrator-associate-az-104", name: "Microsoft Azure Administrator Associate AZ-104", focus: "Practice setting up and troubleshooting Azure.", legalNote: "Independent study content. Not affiliated with or endorsed by Microsoft.", iconName: "settings", svg: settingsIcon },
+  { id: "microsoft-azure-ai-fundamentals-ai-901", name: "Microsoft Azure AI Fundamentals AI-901", focus: "Learn AI concepts and when to use Azure AI services.", legalNote: "Independent study content. Not affiliated with or endorsed by Microsoft.", iconName: "cpu", svg: cpuIcon },
+  { id: "claude-certified-architect-professional-certification", name: "Claude Certified Architect – Professional", focus: "Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery.", legalNote: "Independent study content. Not affiliated with or endorsed by Anthropic.", iconName: "sparkle", svg: sparkleIcon },
 ];
 
 function Header() {
@@ -130,7 +130,7 @@ function TracksSection() {
       </Reveal>
       <Reveal className="track-atlas reveal-delay">
         {tracks.map((track) => (
-          <article className="track-card" key={track.name}>
+          <article className="track-card" data-track-id={track.id} key={track.id}>
             <span
               aria-hidden="true"
               className="track-icon"
