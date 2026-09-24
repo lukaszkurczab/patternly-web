@@ -1,6 +1,6 @@
 # EPIC-05 — pozostałe wdrożenie hosted web
 
-**Źródło kolejności:** `../../docs/PATTERNLY-WORKING-PLAN.md`. Ten pakiet doprecyzowuje WEB-03C i nie zmienia decyzji PO.
+**Źródło kolejności:** [aktualny plan roboczy](https://github.com/lukaszkurczab/gcp-ace-trainer/blob/main/docs/PATTERNLY-WORKING-PLAN.md). Ten pakiet doprecyzowuje WEB-03C i nie zmienia decyzji PO.
 
 Publiczny build zawiera wyłącznie stronę marketingową z dziewięcioma trackami. Panel administratora działa lokalnie na loopback z Firebase Authentication, autoryzacją backendu i emulatorami. Wnioski o dane i prywatność zaczynają się w aplikacji mobilnej.
 
