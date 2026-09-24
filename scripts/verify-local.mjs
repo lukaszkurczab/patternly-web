@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer, preview } from "vite";
+import { createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
+const legalArtifact = createAppProducedPublicLegalTestArtifact();
+const fixtureDirectory = await mkdtemp(resolve(tmpdir(), "patternly-public-legal-verify-"));
+const legalFixturePath = resolve(fixtureDirectory, "public-legal.json");
+await writeFile(legalFixturePath, `${JSON.stringify(legalArtifact, null, 2)}\n`);
+process.env.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH = legalFixturePath;
+process.env.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT = legalArtifact.sourceFingerprint;
 const hosting = JSON.parse(await readFile(resolve(root, "firebase.json"), "utf8")).hosting;
 const publicTracks = [
   ["coding-interview-dsa-problem-solving", "Coding Interview: DSA & Problem Solving"],
@@ -37,6 +45,8 @@ assert.equal(hosting.headers, undefined, "Admin noindex headers cannot substitut
 
 const builtFiles = await files(dist);
 assert.ok(builtFiles.some((path) => path.endsWith("/index.html")));
+assert.ok(builtFiles.some((path) => path.endsWith("/privacy.html")));
+assert.ok(builtFiles.some((path) => path.endsWith("/terms.html")));
 assert.ok(!builtFiles.some((path) => path.endsWith("/admin.html")));
 const textAssets = builtFiles.filter((path) => /\.(?:html|js|css|json|svg)$/u.test(path));
 const builtText = (await Promise.all(textAssets.map((path) => readFile(path, "utf8")))).join("\n");
@@ -59,7 +69,7 @@ assert.doesNotMatch(sourceMain, /AdminPage|PrivacyRequestPage|\.\/App/u);
 assert.match(sourceAdminMain, /AdminPage/u);
 assert.doesNotMatch(sourceAdminMain, /PublicPage|PrivacyRequestPage/u);
 
-const ssr = await createServer({ root, appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+const ssr = await createServer({ root, mode: "local-test", appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
 try {
   const { PublicPage } = await ssr.ssrLoadModule("/src/pages/PublicPage.jsx");
   const html = renderToStaticMarkup(createElement(PublicPage));
@@ -74,10 +84,37 @@ try {
   }
   assert.equal((html.match(/data-track-icon="sparkle"/gu) || []).length, 1);
   assert.equal((html.match(/role="radiogroup"/gu) || []).length, 1);
+  assert.match(html, /Seller: &lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
+  assert.doesNotMatch(html, /<script>alert/u);
+  assert.ok(html.includes(legalArtifact.publicLinks.privacyUrl));
+  assert.ok(html.includes(legalArtifact.publicLinks.termsUrl));
+  assert.ok(html.includes(legalArtifact.publicLinks.supportUrl));
   assert.doesNotMatch(html, /href="\/admin"|privacy-request/u);
+
+  const { PublicLegalPage } = await ssr.ssrLoadModule("/src/pages/PublicLegalPage.jsx");
+  const privacy = renderToStaticMarkup(createElement(PublicLegalPage, { document: "privacyPolicy" }));
+  assert.match(privacy, /Privacy policy/u);
+  assert.match(privacy, /test-2026-09-24/u);
+  assert.ok(privacy.includes("Synthetic legal.privacy.controllerLegalName.en"));
+  assert.ok(privacy.includes(legalArtifact.publicLinks.privacyUrl));
+  assert.ok(privacy.includes(legalArtifact.publicLinks.termsUrl));
+  assert.doesNotMatch(privacy, /<script>alert|onerror=/iu);
+  const terms = renderToStaticMarkup(createElement(PublicLegalPage, { document: "termsOfService" }));
+  assert.match(terms, /Terms of service/u);
+  assert.match(terms, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
+  assert.doesNotMatch(terms, /<script>alert/u);
+  const privacyPl = renderToStaticMarkup(createElement(PublicLegalPage, { document: "privacyPolicy", initialLocale: "pl" }));
+  assert.match(privacyPl, /Polityka prywatności/u);
+  assert.match(privacyPl, /lang="pl"/u);
+  assert.match(privacyPl, /test-2026-09-24/u);
+  assert.ok(privacyPl.includes("Synthetic legal.privacy.controllerLegalName.pl"));
+  const termsPl = renderToStaticMarkup(createElement(PublicLegalPage, { document: "termsOfService", initialLocale: "pl" }));
+  assert.match(termsPl, /Warunki korzystania/u);
+  assert.match(termsPl, /lang="pl"/u);
+  assert.match(termsPl, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
 } finally { await ssr.close(); }
 
-const local = await createServer({ root, logLevel: "silent", server: { host: "127.0.0.1", port: 0 } });
+const local = await createServer({ root, mode: "local-test", logLevel: "silent", server: { host: "127.0.0.1", port: 0 } });
 await local.listen();
 try {
   const localUrl = local.resolvedUrls.local[0];
@@ -85,18 +122,29 @@ try {
   assert.equal(admin.status, 200);
   assert.match(await admin.text(), /src="\/src\/adminMain\.jsx"/u);
   assert.equal((await fetch(new URL("/privacy-request", localUrl))).status, 404);
+  for (const route of ["/privacy", "/terms"]) {
+    const response = await fetch(new URL(route, localUrl));
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /publicLegalMain\.jsx/u);
+  }
 } finally { await local.close(); }
 
-const publicPreview = await preview({ root, logLevel: "silent", preview: { host: "127.0.0.1", port: 0 } });
+const publicPreview = await preview({ root, mode: "local-test", logLevel: "silent", preview: { host: "127.0.0.1", port: 0 } });
 try {
   const address = publicPreview.httpServer.address();
   const base = `http://127.0.0.1:${address.port}`;
   const home = await fetch(`${base}/`);
   assert.equal(home.status, 200);
   assert.match(await home.text(), /src="\/assets\/index-[^"]+\.js"/u);
+  for (const path of ["/privacy.html", "/terms.html"]) {
+    const response = await fetch(`${base}${path}`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /src="\/assets\/publicLegalMain-[^"]+\.js"/u);
+  }
   for (const path of ["/admin", "/admin/", "/admin.html", "/privacy-request", "/privacy-request/example"]) {
     assert.equal((await fetch(`${base}${path}`, { redirect: "manual" })).status, 404, `${path} must be absent from the public preview.`);
   }
 } finally { await new Promise((done) => publicPreview.httpServer.close(done)); }
 
-process.stdout.write("Public build, route boundary, marketing render, and local admin entry verification passed.\n");
+await rm(fixtureDirectory, { recursive: true, force: true });
+process.stdout.write("Public build, legal pages, locale content, route boundary, marketing render, and local admin entry verification passed.\n");

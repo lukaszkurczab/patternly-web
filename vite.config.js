@@ -2,12 +2,18 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { getAdminRedirectPath } from "./src/adminRoute.js";
+import { loadPublicLegalArtifact } from "./src/publicLegalArtifact.js";
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
 function redirectAdminAliases(server) {
   server.middlewares.use((request, response, next) => {
     const requestUrl = new URL(request.url || "/", "http://patternly.local");
+    if (["/privacy", "/terms"].includes(requestUrl.pathname)) {
+      request.url = `${requestUrl.pathname}.html${requestUrl.search}`;
+      next();
+      return;
+    }
     const redirectPath = getAdminRedirectPath(requestUrl.pathname);
 
     if (!redirectPath) {
@@ -30,7 +36,7 @@ function localAdminRoutePlugin() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   appType: "mpa",
   plugins: [localAdminRoutePlugin()],
   esbuild: {
@@ -38,7 +44,14 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: resolve(projectRoot, "index.html"),
+      input: {
+        index: resolve(projectRoot, "index.html"),
+        privacy: resolve(projectRoot, "privacy.html"),
+        terms: resolve(projectRoot, "terms.html"),
+      },
     },
   },
-});
+  define: {
+    __PATTERNLY_PUBLIC_LEGAL__: JSON.stringify(loadPublicLegalArtifact(process.env, mode === "local-test" ? "local-test" : "production")),
+  },
+}));

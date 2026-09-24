@@ -12,6 +12,8 @@ import { Brand } from "../components/Brand";
 import { InteractiveQuestion } from "../components/InteractiveQuestion";
 import { Reveal } from "../hooks/useReveal";
 
+const publicLegal = __PATTERNLY_PUBLIC_LEGAL__;
+
 const tracks = [
   { id: "coding-interview-dsa-problem-solving", name: "Coding Interview: DSA & Problem Solving", focus: "Find an approach to unfamiliar coding problems.", iconName: "route", svg: routeIcon },
   { id: "backend-system-design-interview", name: "Backend System Design Interview", focus: "Design reliable systems and explain your choices.", iconName: "database", svg: databaseIcon },
@@ -150,7 +152,7 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-inner"><div className="footer-brand"><Brand /><p className="footer-tagline">Practice. Understand. Try again.</p><p className="footer-note">Make time for your next step.</p></div><div className="footer-explore"><p className="eyebrow">Explore</p><div><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a></div></div></div>
-      <div className="footer-meta"><p>Patternly is an independent learning tool. It is not an official certification provider or a guarantee of exam outcomes.</p><p>Seller: Łukasz Kurczab. Purchases are not available on this site.</p></div>
+      <div className="footer-meta"><p>Patternly is an independent learning tool. It is not an official certification provider or a guarantee of exam outcomes.</p><p>Seller: {publicLegal.publicProfile.operator.legalName.en}. Purchases are not available on this site.</p><nav aria-label="Legal and support"><a href={publicLegal.publicLinks.privacyUrl}>Privacy</a><a href={publicLegal.publicLinks.termsUrl}>Terms</a><a href={publicLegal.publicLinks.supportUrl}>Support</a></nav></div>
     </footer>
   );
 }
