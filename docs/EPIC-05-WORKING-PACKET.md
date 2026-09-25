@@ -4,7 +4,9 @@
 
 Publiczny build zawiera wyłącznie stronę marketingową z dziewięcioma trackami. Panel administratora działa lokalnie na loopback z Firebase Authentication, autoryzacją backendu i emulatorami. Wnioski o dane i prywatność zaczynają się w aplikacji mobilnej.
 
-## WEB-03C — wdrożenie i zdalna weryfikacja (`partial`)
+## WEB-03C — przygotowanie i zdalna weryfikacja (`PREP done / PUBLISH wait`)
+
+PREP 25.09.2026: lokalny manifest `local-test` obejmuje 11 plików `dist` z SHA-256 i rozmiarem, źródła oraz projekt/site. `prepare:web03c:local` i niezależne QA przeszły. Firebase CLI nadal odrzuca credentials, więc dostępu, zdalnego release i rollbacku nie potwierdzono. Produkcyjny build i PUBLISH czekają na ODK-116-B. Szczegóły i przyszła procedura rollbacku są w [preparation](WEB-03C-PREPARATION.md).
 
 - **Cel:** publiczny hosting serwuje wyłącznie zweryfikowany artefakt marketingowy.
 - **Zakres:** zgoda PO została udzielona. Lokalnie wyrównano katalog dziewięciu tracków z mobile registry i dodano brakujące noty niezależności pięciu certyfikacji; `verify:local` sprawdza komplet ID, tytułów i not. Pozostałe: dodać prawdziwe read-only Privacy/Terms/Support linki po ODK-116; następnie odświeżyć/porównać `dist`, opublikować wyłącznie Hosting i sprawdzić zdalne `/`, `/admin*`, `/privacy-request*` oraz rollback.

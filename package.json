@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview --host localhost",
     "verify:local": "node scripts/build-local.mjs && node scripts/verify-local.mjs",
+    "prepare:web03c:local": "node scripts/prepare-web03c-local.mjs",
     "test:public-legal": "node --test scripts/public-legal.test.mjs",
     "test:public-legal:producer": "node --test scripts/public-legal-producer-contract.test.mjs",
     "test:admin-behavior": "node scripts/admin-behavior.test.mjs",

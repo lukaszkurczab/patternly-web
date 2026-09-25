@@ -1,14 +1,20 @@
-# WEB-03C — przygotowanie publikacji
+# WEB-03C/PREP — lokalne przygotowanie
 
-**Stan:** zgoda PO na marketingową publikację w `patternly-app-sandbox` została udzielona 22 września 2026. Nie opublikowano. Lokalny slice katalogu przeszedł weryfikację; publikacja pozostaje zablokowana przez brak dokładnych, prawdziwych treści/linków PO-116 oraz nieważne Firebase CLI credentials.
+**Stan 25.09.2026:** techniczny lokalny build `local-test` i kontrola granicy publicznego Hostingu przeszły. Nie było publikacji. `WEB-03C/PUBLISH` pozostaje osobnym zadaniem po rzeczywistych danych ODK-116-B.
 
-- Projekt/site z `.firebaserc` i `firebase.json`: `patternly-app-sandbox`; katalog Hosting `dist`.
-- Repo web HEAD przed lokalnymi zmianami: `3465fdb3a767055bf26a65bc015e3d56c4ae871a`; źródło kontraktu katalogu: mobile `patternly` HEAD `80ec9db0316ebae8af29987377d19d5008509acd`, plik `src/domain/tracks/trackRegistry.ts`.
-- Lokalna zmiana wyrównała dziewięć publicznych track ID/tytułów i pięć not niezależnościowych dla certyfikacji. `npm run verify:local` PASS; lokalne Vite na porcie 5173 zachowano.
-- SHA-256 lokalnego `dist/index.html`: `d6dc82cf490870a83613e5939cc165c07f3f21eb1a14c916c2541e02fc05169e`.
-- SHA-256 `dist/assets/index-DU4bLOKV.css`: `44e387155ae855526fd11b54a6c8f6589f97827bcf18de189a57c4f5e97df024`.
-- SHA-256 `dist/assets/index-CnyuTZ-Z.js`: `1aceb2f45fb4580a1753196b4e9cda00cb14daa5f59fa7b2f346e9e73bb1aedb`.
-- Weryfikacja 23 września 2026: publiczny root zwraca HTTP 404. Firebase CLI 15.19.0 rozpoznaje site, lecz `hosting:sites:list` kończy się `Authentication Error: Your credentials are no longer valid` (exit 2).
-- ODK-116 nadal blokuje prawdziwe publiczne Privacy/Terms/Support linki i końcowe informacje operatora. Nie dodawać fikcyjnych adresów ani placeholderów. Nie sprawdzono wizualnie zrzutów: brak lokalnego Chromium Playwright, a runtime CUA nie startował; strona została skierowana do wbudowanego panelu, ale wynik wyświetlenia nie jest potwierdzeniem odbioru.
+## Powtarzalny dowód lokalny
 
-Po dostarczeniu ODK-116 i odnowieniu Firebase CLI: dodać/weryfikować publiczne read-only informacje; odświeżyć dokładny build i digesty; potwierdzić projekt/site oraz poprzedni release lub jego brak; dopiero wówczas wykonać osobno autoryzowaną publikację wyłącznie Hosting, sprawdzić zdalne `/`, `/admin*`, `/privacy-request*`, porównać artefakty, zachować rollback i uzupełnić raport WEB-03C. Lokalny build nie dowodzi zdalnego wdrożenia.
+W repo web uruchom `npm run prepare:web03c:local -- /tmp/patternly-web03c-local-manifest.json`. Skrypt wywołuje `verify:local`, a następnie zapisuje SHA-256 i rozmiar każdego pliku `dist`, SHA konfiguracji Hosting i źródła prawnego aplikacji, SHA HEAD obu repozytoriów oraz stan ich drzew. Manifest ma `mode: local-test` i `deployable: false`. Weryfikacja sprawdza dziewięć tracków, dokumenty testowe, brak kodu admin/privacy intake w publicznym buildzie oraz lokalne 404 dla `/admin*` i `/privacy-request*`.
+
+Ostatni przebieg: `verify:local` PASS; 11 plików `dist`. `index.html` SHA-256 `bf23c49602134c7c0d8cf0562cda5b02c7bc2496551f3670256147aea98a3308`; `privacy.html` `0185420ad30a1967903c2456c2167f08d484e3905e29db99d1e765b4ce068eda`; `terms.html` `9e00e9864c1fc0362cec63584e3638d86a75d7648959fe7c7924f474124d18d2`. Cały manifest lokalny jest w `/tmp/patternly-web03c-local-manifest.json`; po zmianach źródeł należy go odtworzyć. Testowy artefakt jest produkowany z `patternly/config/public-legal.release.json` przez app exporter i jawnie używa syntetycznych wartości. Nie stanowi danych do publikacji.
+
+Konfiguracja wskazuje projekt i site `patternly-app-sandbox`, a Hosting publikuje wyłącznie `dist`. Lokalna konfiguracja nie dowodzi prawa dostępu ani bieżącego stanu zdalnego site. `firebase projects:list --json` (CLI 15.19.0) zakończyło się kodem 2, więc obecnie nie ma potwierdzonego dostępu do projektu ani identyfikatora poprzedniego release. Nie wykonano zdalnego rollbacku.
+
+## Osobny WEB-03C/PUBLISH
+
+1. Po ODK-116-B przygotować prawdziwy, zatwierdzony artefakt prawny. Produkcyjny build musi odrzucić `testOnly`; sprawdzić prawdziwe publiczne linki, dane operatora i brak placeholderów. Użyć czystych, przypiętych SHA web i app oraz zapisać fingerprint artefaktu, manifest wszystkich bajtów `dist` i wynik testów.
+2. Potwierdzić tożsamość konta Firebase, projekt `patternly-app-sandbox`, site, uprawnienia do Hosting i obecny release ID. Przed zmianą utworzyć jednorazowy kanał podglądu dla rollbacku i sklonować obecną wersję live poleceniem `firebase hosting:clone patternly-app-sandbox:live patternly-app-sandbox:<rollback-channel> --project patternly-app-sandbox`. Odczytać kanał, zapisać jego ID, release ID i wynik. Jeśli live nie ma poprzedniego release, zapisać ten fakt i sprawdzić `firebase hosting:disable --help` jako osobną procedurę awaryjnego zatrzymania serwowania; nie przedstawiać jej jako przywrócenia wersji.
+3. W osobno autoryzowanym kroku opublikować wyłącznie Hosting z dokładnego sprawdzonego `dist`. Po publikacji porównać zdalne `/`, `/privacy`, `/terms` i ich zawartość z manifestem oraz sprawdzić zdalne 404 dla `/admin`, `/admin/`, `/admin.html`, `/privacy-request` i podrzędnej ścieżki. Zapisać nowy release ID, czas, projekt/site i wynik.
+4. Jeżeli odbiór zawiedzie, zatrzymać dalszy rollout i sklonować zapisany kanał rollbacku z powrotem na live: `firebase hosting:clone patternly-app-sandbox:<rollback-channel> patternly-app-sandbox:live --project patternly-app-sandbox`. Potwierdzić nowy release ID, treść `/` i negatywne trasy. Gdy nie było poprzedniego release, wykonać uprzednio sprawdzoną procedurę awaryjnego zatrzymania serwowania, a nie pozorny rollback. Sama instrukcja nie jest dowodem, że rollback zadziałał.
+
+Stare digesty z 23.09 dotyczą poprzedniego builda i nie identyfikują bieżącego `dist`. Manifest lokalny z syntetycznymi danymi jest niewdrażalny i nie zastępuje manifestu produkcyjnego ani zdalnego odbioru.
