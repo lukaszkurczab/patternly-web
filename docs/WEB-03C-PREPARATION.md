@@ -1,12 +1,14 @@
 # WEB-03C/PREP — lokalne przygotowanie
 
-**Stan 25.09.2026:** techniczny lokalny build `local-test` i kontrola granicy publicznego Hostingu przeszły. Nie było publikacji. `WEB-03C/PUBLISH` pozostaje osobnym zadaniem po rzeczywistych danych ODK-116-B.
+**Stan 25.09.2026:** techniczny lokalny build `local-test` i kontrola granicy publicznego Hostingu przeszły po rewalidacji controllera. Pierwszy manifest dopuszczał brudne źródło; poprawiona wersja odmawia takiego przebiegu i przypina czyste HEAD-y przed oraz po buildzie. Nie było publikacji. `WEB-03C/PUBLISH` pozostaje osobnym zadaniem po rzeczywistych danych ODK-116-B.
 
 ## Powtarzalny dowód lokalny
 
 W repo web uruchom `npm run prepare:web03c:local -- /tmp/patternly-web03c-local-manifest.json`. Skrypt wymaga czystych drzew app i web przed buildem, przypina oba HEAD-y, wywołuje `verify:local`, a następnie ponownie potwierdza, że HEAD-y i drzewa nie zmieniły się podczas pracy. Dopiero wtedy zapisuje SHA-256 i rozmiar każdego pliku `dist`, SHA konfiguracji Hosting i źródła prawnego aplikacji oraz wersję Node i SHA lockfile. Ścieżka manifestu musi znajdować się poza oboma repozytoriami. Manifest ma `sourceClean: true`, `mode: local-test` i `deployable: false`. Weryfikacja sprawdza dziewięć tracków, dokumenty testowe, brak kodu admin/privacy intake w publicznym buildzie oraz lokalne 404 dla `/admin*` i `/privacy-request*`.
 
 Ostatni pełny przebieg należy odczytać z wygenerowanego manifestu w `/tmp`; dokumentacja nie utrwala digestów wcześniejszego `dist`. Po każdej zmianie źródeł manifest trzeba odtworzyć z czystych HEAD-ów. Testowy artefakt jest produkowany z `patternly/config/public-legal.release.json` przez app exporter i jawnie używa syntetycznych wartości. Nie stanowi danych do publikacji.
+
+Kontrole rewalidacyjne: testy bramki 2/2 PASS, `verify:local` PASS, pełny `prepare:web03c:local` PASS na czystych repozytoriach. Próba z brudnym webem zakończyła się przed zapisem manifestu, a ścieżki wyjściowe wewnątrz app/web są odrzucane.
 
 Konfiguracja wskazuje projekt i site `patternly-app-sandbox`, a Hosting publikuje wyłącznie `dist`. Lokalna konfiguracja nie dowodzi prawa dostępu ani bieżącego stanu zdalnego site. `firebase projects:list --json` (CLI 15.19.0) zakończyło się kodem 2, więc obecnie nie ma potwierdzonego dostępu do projektu ani identyfikatora poprzedniego release. Nie wykonano zdalnego rollbacku.
 
