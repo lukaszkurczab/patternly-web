@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer, preview } from "vite";
-import { createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
+import { addSyntheticPublicLegalLocales, createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
@@ -112,6 +112,30 @@ try {
   assert.match(termsPl, /Warunki korzystania/u);
   assert.match(termsPl, /lang="pl"/u);
   assert.match(termsPl, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/u);
+
+  const allLocales = addSyntheticPublicLegalLocales(legalArtifact, ["de", "fr", "es", "it", "et"]);
+  const localeSsr = await createServer({
+    configFile: false,
+    root,
+    mode: "local-test",
+    appType: "custom",
+    logLevel: "silent",
+    esbuild: { jsx: "automatic" },
+    define: { __PATTERNLY_PUBLIC_LEGAL__: JSON.stringify(allLocales) },
+    server: { middlewareMode: true },
+  });
+  try {
+    const { PublicLegalPage: AllLocaleLegalPage } = await localeSsr.ssrLoadModule("/src/pages/PublicLegalPage.jsx");
+    const germanPrivacy = renderToStaticMarkup(createElement(AllLocaleLegalPage, { document: "privacyPolicy", initialLocale: "de" }));
+    assert.match(germanPrivacy, /Datenschutzerklärung/u);
+    assert.match(germanPrivacy, /lang="de"/u);
+    assert.match(germanPrivacy, /test-de-2026-09-24/u);
+    assert.match(germanPrivacy, /<option value="et">Eesti<\/option>/u);
+    const estonianTerms = renderToStaticMarkup(createElement(AllLocaleLegalPage, { document: "termsOfService", initialLocale: "et" }));
+    assert.match(estonianTerms, /Kasutustingimused/u);
+    assert.match(estonianTerms, /lang="et"/u);
+    assert.match(estonianTerms, /test-et-2026-09-24/u);
+  } finally { await localeSsr.close(); }
 } finally { await ssr.close(); }
 
 const local = await createServer({ root, mode: "local-test", logLevel: "silent", server: { host: "127.0.0.1", port: 0 } });

@@ -26,3 +26,15 @@ export function createAppProducedPublicLegalTestArtifact() {
   source.terms.operatorLegalName = { en: "<script>alert(1)</script>", pl: "<script>alert(1)</script>" };
   return buildPublicLegalArtifactForTest(source);
 }
+
+export function addSyntheticPublicLegalLocales(artifact, locales) {
+  const copy = structuredClone(artifact);
+  for (const locale of locales) {
+    copy.documentVersion[locale] = `test-${locale}-2026-09-24`;
+    for (const profile of Object.values(copy.publicProfile)) {
+      for (const localized of Object.values(profile)) localized[locale] = `Synthetic ${locale} profile value`;
+    }
+    for (const localized of Object.values(copy.documents)) localized[locale] = `Synthetic ${locale} legal document`;
+  }
+  return copy;
+}

@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 
 const FINGERPRINT = /^[0-9a-f]{64}$/u;
 const SCHEMA_VERSION = "patternly-public-legal-export-v1";
-const locales = ["en", "pl"];
+const REQUIRED_LOCALES = ["en", "pl"];
+const LOCALIZED_PROFILE_FIELDS = ["legalName", "businessForm", "address", "email", "phone", "registrationNumber", "taxIdentifier"];
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -46,13 +47,13 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
   if (mode === "production" && artifact.testOnly) {
     throw new Error("Production builds cannot use a test-only public legal artifact.");
   }
-  if (mode === "local-test" && !artifact.testOnly) {
-    throw new Error("Local test builds require a test-only public legal artifact.");
+  if (["local-test", "contract-test"].includes(mode) && !artifact.testOnly) {
+    throw new Error(`${mode === "contract-test" ? "Contract tests" : "Local test builds"} require a test-only public legal artifact.`);
   }
   if (!isRecord(artifact.documentVersion)) {
     throw new Error("Public legal artifact has an invalid document version.");
   }
-  for (const locale of locales) requireText(artifact.documentVersion[locale], `documentVersion.${locale}`);
+  for (const locale of REQUIRED_LOCALES) requireText(artifact.documentVersion[locale], `documentVersion.${locale}`);
   if (typeof artifact.sourceFingerprint !== "string" || !FINGERPRINT.test(artifact.sourceFingerprint)) {
     throw new Error("Public legal artifact has an invalid source fingerprint.");
   }
@@ -66,10 +67,10 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
   for (const profileName of ["controller", "operator"]) {
     const profile = artifact.publicProfile?.[profileName];
     if (!isRecord(profile)) throw new Error(`Public legal artifact is missing publicProfile.${profileName}.`);
-    for (const field of ["legalName", "businessForm", "address", "email", "phone", "registrationNumber", "taxIdentifier"]) {
+    for (const field of LOCALIZED_PROFILE_FIELDS) {
       const localized = profile[field];
       if (!isRecord(localized)) throw new Error(`Public legal artifact is missing publicProfile.${profileName}.${field}.`);
-      for (const locale of locales) requireText(localized[locale], `publicProfile.${profileName}.${field}.${locale}`);
+      for (const locale of REQUIRED_LOCALES) requireText(localized[locale], `publicProfile.${profileName}.${field}.${locale}`);
     }
   }
   requireLegalPageUrl(artifact.publicLinks?.privacyUrl, "publicLinks.privacyUrl", "/privacy");
@@ -78,14 +79,14 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
   for (const document of ["privacyPolicy", "termsOfService"]) {
     const localized = artifact.documents?.[document];
     if (!isRecord(localized)) throw new Error(`Public legal artifact is missing documents.${document}.`);
-    for (const locale of locales) requireText(localized[locale], `documents.${document}.${locale}`);
+    for (const locale of REQUIRED_LOCALES) requireText(localized[locale], `documents.${document}.${locale}`);
   }
   return artifact;
 }
 
 export function loadPublicLegalArtifact(environment = process.env, mode = "production") {
-  if (mode !== "production" && mode !== "local-test") {
-    throw new Error("PATTERNLY_PUBLIC_LEGAL_MODE must be production or local-test.");
+  if (!new Set(["production", "local-test", "contract-test"]).has(mode)) {
+    throw new Error("PATTERNLY_PUBLIC_LEGAL_MODE must be production, local-test, or contract-test.");
   }
   const artifactPath = environment.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH;
   if (typeof artifactPath !== "string" || artifactPath.trim().length === 0) {

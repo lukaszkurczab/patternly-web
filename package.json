@@ -12,6 +12,7 @@
     "preview": "vite preview --host localhost",
     "verify:local": "node scripts/build-local.mjs && node scripts/verify-local.mjs",
     "test:public-legal": "node --test scripts/public-legal.test.mjs",
+    "test:public-legal:producer": "node --test scripts/public-legal-producer-contract.test.mjs",
     "test:admin-behavior": "node scripts/admin-behavior.test.mjs",
     "test:admin-config": "node --test scripts/admin-config.test.mjs",
     "test:admin-local": "node scripts/admin-local-smoke.mjs"
