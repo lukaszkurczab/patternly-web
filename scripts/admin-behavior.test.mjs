@@ -1,17 +1,21 @@
 // Controlled browser tests of the real React component. Firebase aliases live only here.
 // Real SDK/Auth Emulator/API/Firestore integration is a separate acceptance check.
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, before, after } from "node:test";
 import { createServer } from "vite";
 import { chromium, expect } from "playwright/test";
 import viteConfig from "../vite.config.js";
+import { createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.env.ADMIN_BEHAVIOR_PORT || 25188);
 const origin = `http://127.0.0.1:${port}`;
 const api = "http://127.0.0.1:28080";
+let legalFixtureDirectory;
 let server;
 let browser;
 const entry = (status = "open", id = "11111111-1111-4111-8111-111111111111") => ({
@@ -182,8 +186,17 @@ const inspectionQuestions = [
 ];
 
 before(async () => {
+  const legalArtifact = createAppProducedPublicLegalTestArtifact();
+  legalFixtureDirectory = mkdtempSync(resolve(tmpdir(), "patternly-admin-behavior-legal-"));
+  const legalFixturePath = resolve(legalFixtureDirectory, "public-legal.json");
+  writeFileSync(legalFixturePath, `${JSON.stringify(legalArtifact, null, 2)}\n`);
+  process.env.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH = legalFixturePath;
+  process.env.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT = legalArtifact.sourceFingerprint;
+  const resolvedViteConfig = typeof viteConfig === "function"
+    ? viteConfig({ command: "serve", mode: "local-test", isSsrBuild: false, isPreview: false })
+    : viteConfig;
   server = await createServer({
-    ...viteConfig, configFile: false, root,
+    ...resolvedViteConfig, configFile: false, root,
     server: { host: "127.0.0.1", port, strictPort: true },
     resolve: { alias: {
       "firebase/app": resolve(root, "scripts/admin-behavior/firebase-app.mjs"),
@@ -203,7 +216,11 @@ before(async () => {
     ...(process.env.ADMIN_BROWSER_EXECUTABLE ? { executablePath: process.env.ADMIN_BROWSER_EXECUTABLE } : {}),
   });
 });
-after(async () => { await browser?.close(); await server?.close(); });
+after(async () => {
+  await browser?.close();
+  await server?.close();
+  if (legalFixtureDirectory) rmSync(legalFixtureDirectory, { recursive: true, force: true });
+});
 
 async function screen(t) {
   const context = await browser.newContext();
