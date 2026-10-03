@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 import { createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const demoCheck = spawnSync(process.execPath, [resolve(root, "scripts/check-canonical-demo.mjs")], { cwd: root, stdio: "inherit" });
+if (demoCheck.error) throw demoCheck.error;
+if (demoCheck.status !== 0) process.exit(demoCheck.status ?? 1);
 const artifact = createAppProducedPublicLegalTestArtifact();
 const fixtureDirectory = mkdtempSync(resolve(tmpdir(), "patternly-public-legal-test-"));
 const fixturePath = resolve(fixtureDirectory, "public-legal.json");
@@ -21,7 +24,12 @@ try {
     },
   });
   if (result.error) throw result.error;
-  process.exitCode = result.status ?? 1;
+  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  else {
+    const demoVerification = spawnSync(process.execPath, [resolve(root, "scripts/verify-demo-bundle.mjs")], { cwd: root, stdio: "inherit" });
+    if (demoVerification.error) throw demoVerification.error;
+    process.exitCode = demoVerification.status ?? 1;
+  }
 } finally {
   rmSync(fixtureDirectory, { recursive: true, force: true });
 }
