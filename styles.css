@@ -148,12 +148,11 @@ h3 { font-size: 19px; font-weight: 620; line-height: 1.3; margin-bottom: 9px; }
 .practice-question { padding: 26px 28px 18px; }
 .question-label { color: var(--text-muted); font-size: 10px; letter-spacing: .14em; margin-bottom: 12px; text-transform: uppercase; }
 .practice-question h2 { font-size: clamp(1.35rem, 2vw, 1.7rem); font-weight: 610; line-height: 1.24; margin-bottom: 12px; max-width: 740px; }
-.query-context { color: var(--text-secondary); font-size: 14px; line-height: 22px; margin: 0; }
-.query-context code { color: var(--mint); font-family: var(--font-utility); font-size: .9em; overflow-wrap: anywhere; }
 .practice-options { display: grid; gap: 8px; padding: 0 28px 22px; }
 .choice-input { block-size: 1px; clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; position: absolute; white-space: nowrap; }
 .practice-option label { align-items: center; background: rgba(12, 19, 36, .56); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; display: flex; font-size: 15px; gap: 15px; min-height: 52px; padding: 10px 14px; text-align: left; transition: background .2s ease, border-color .2s ease, color .2s ease, transform .2s var(--ease-out); width: 100%; }
 .practice-option label:hover, .choice-input:focus-visible + label { border-color: rgba(94, 234, 212, .72); color: var(--text); }
+.choice-input:focus-visible + label { outline: 2px solid var(--mint); outline-offset: 4px; }
 .practice-option[data-state="selected"] label { border-color: var(--mint); color: var(--text); transform: translateX(4px); }
 .practice-option > label > span { align-items: center; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-muted); display: inline-flex; flex: 0 0 auto; font-family: var(--font-utility); font-size: 10px; font-weight: 700; height: 24px; justify-content: center; width: 24px; }
 .practice-option[data-state="selected"] > label > span { background: var(--mint-strong); border-color: var(--mint-strong); color: var(--canvas); }
