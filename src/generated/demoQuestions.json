@@ -1,0 +1,196 @@
+{
+  "schemaVersion": "patternly-canonical-demo-questions-v1",
+  "demos": [
+    {
+      "schemaVersion": "patternly-canonical-demo-question-v1",
+      "provenance": {
+        "trackId": "coding-interview-dsa-problem-solving",
+        "nodeId": "complexity_and_constraints",
+        "questionId": "alg-complexity-time-005",
+        "contentVersion": "coding-interview-dsa-problem-solving-authoring-v2026.10.02-bizq01-04",
+        "artifactSha256": "4ceb71ebf2edd963dd6f1bdd274dface6da667dd7d3586fa44b52efe45f263f6",
+        "appContentLockSha256": "68ffaee5e89716877e438f3718f8a8d7c4b5a7060e929156992c829031500051",
+        "releaseLockSha256": "ac52a11e635cb0a51a346380f3fab7f32c03839fad268be2dccb49afd8cc7ca9",
+        "admissionPath": "patternly-content/evidence/admissions/candidate-admission-v3.json",
+        "admissionSha256": "4e1a60421cc9a541f8212165e85b3cfbeaed9f76b084d269df154ee6578cfaaa",
+        "candidateId": "e7fbd82b4afab18994e406175feb442842ccf06b41be3efec0ae92cf2d394fbe",
+        "sourceReleaseSha256": "128c1e03dbb92e8e13df7a5dcd7bc9cf3bbb63317dbd91c170ae794c3c8281bf",
+        "runtimeEvidenceSha256": "d62c53b15b231458e9eb6566da5f329095f3908bf5940cc1893befb8d8cfdbef",
+        "releaseId": "patternly-candidate-0a4b8cbcf51b",
+        "producerCommit": "0a4b8cbcf51b40f0c33b6c699606e2c85998705a",
+        "sourcePath": "content/coding-interview-dsa-problem-solving/complexity_and_constraints/derive_time_complexity.json",
+        "modeIds": [
+          "coding-interview-learn-approach",
+          "coding-interview-guided-practice",
+          "coding-interview-custom-practice"
+        ]
+      },
+      "detailsParagraphs": [
+        "Do not count the inner loop as n for every outer iteration unless it restarts. Instead, charge each iteration to a pointer advance. A left pointer can advance at most n positions and a right-moving pointer can also advance at most n positions, so there are at most 2n advances. If every loop iteration makes at least one such advance, there can be only O(n) iterations overall. This aggregate argument fails if an inner pointer resets and revisits the same elements for every outer iteration."
+      ],
+      "question": {
+        "answer": {
+          "optionId": "bounded_total_moves",
+          "type": "choice_single"
+        },
+        "difficulty": "foundational",
+        "feedback": {
+          "details": {
+            "blocks": [
+              {
+                "text": "Do not count the inner loop as n for every outer iteration unless it restarts. Instead, charge each iteration to a pointer advance. A left pointer can advance at most n positions and a right-moving pointer can also advance at most n positions, so there are at most 2n advances. If every loop iteration makes at least one such advance, there can be only O(n) iterations overall. This aggregate argument fails if an inner pointer resets and revisits the same elements for every outer iteration.",
+                "type": "paragraph"
+              }
+            ]
+          },
+          "messages": [
+            {
+              "kind": "wrong_option",
+              "targetId": "constant_body",
+              "text": "O(1) work per iteration still accumulates across at most 2n pointer-advancing iterations, giving O(n)."
+            },
+            {
+              "kind": "wrong_option",
+              "targetId": "nested_never_matters",
+              "text": "Nested loops can be quadratic when inner work resets."
+            },
+            {
+              "kind": "wrong_option",
+              "targetId": "pointer_names",
+              "text": "Names such as `left` and `right` provide no bound unless their movement and reset behavior are proved."
+            }
+          ],
+          "reason": "The nested shape is misleading here: each pointer only moves forward and can advance at most n times during the entire run.",
+          "type": "choice_single"
+        },
+        "interaction": {
+          "options": [
+            {
+              "optionId": "bounded_total_moves",
+              "text": "Across the whole run, each pointer advances at most n times."
+            },
+            {
+              "optionId": "nested_never_matters",
+              "text": "Nested loops are always linear."
+            },
+            {
+              "optionId": "pointer_names",
+              "text": "Variables named left and right imply O(n)."
+            },
+            {
+              "optionId": "constant_body",
+              "text": "The loop body is constant-time, so total time is constant."
+            }
+          ],
+          "scoringMethod": "exact_selected_set",
+          "type": "choice_single"
+        },
+        "mentalUnitId": "derive_time_complexity",
+        "nodeId": "complexity_and_constraints",
+        "prompt": "Two pointers each move only forward through an array, neither pointer moves backward, and every loop iteration advances at least one pointer. Why can a nested while loop still be O(n)?",
+        "questionId": "alg-complexity-time-005",
+        "trackId": "coding-interview-dsa-problem-solving"
+      }
+    },
+    {
+      "schemaVersion": "patternly-canonical-demo-question-v1",
+      "provenance": {
+        "trackId": "aws-certified-solutions-architect-associate",
+        "nodeId": "aws_secure_architecture_foundations",
+        "questionId": "aws-saa-c03-architecture-001-odk096",
+        "contentVersion": "aws-certified-solutions-architect-associate-authoring-v2026.09.21-odk096",
+        "artifactSha256": "c86dd81635ebc51771e493729d487432519465f50c55ddcfc5ff71dd546560f9",
+        "appContentLockSha256": "68ffaee5e89716877e438f3718f8a8d7c4b5a7060e929156992c829031500051",
+        "releaseLockSha256": "ac52a11e635cb0a51a346380f3fab7f32c03839fad268be2dccb49afd8cc7ca9",
+        "admissionPath": "patternly-content/evidence/admissions/candidate-admission-v3.json",
+        "admissionSha256": "4e1a60421cc9a541f8212165e85b3cfbeaed9f76b084d269df154ee6578cfaaa",
+        "candidateId": "e7fbd82b4afab18994e406175feb442842ccf06b41be3efec0ae92cf2d394fbe",
+        "sourceReleaseSha256": "128c1e03dbb92e8e13df7a5dcd7bc9cf3bbb63317dbd91c170ae794c3c8281bf",
+        "runtimeEvidenceSha256": "d62c53b15b231458e9eb6566da5f329095f3908bf5940cc1893befb8d8cfdbef",
+        "releaseId": "patternly-candidate-0a4b8cbcf51b",
+        "producerCommit": "0a4b8cbcf51b40f0c33b6c699606e2c85998705a",
+        "sourcePath": "content/aws-certified-solutions-architect-associate/aws_secure_architecture_foundations/architecture_review.json",
+        "modeIds": [
+          "certification-focus-practice"
+        ]
+      },
+      "detailsParagraphs": [
+        "Replicating stateless frontends does not remove a hard dependency; a single nonredundant dependency can determine the availability of the invoking workload.",
+        "The finding is not primarily a cost or sustainability label. A database that can interrupt every replica is a reliability risk even when frontend capacity spans Availability Zones.",
+        "AWS defines reliability as a workload performing its intended function consistently and notes that hard dependency interruptions directly translate into interruptions of the invoking system.",
+        "The review records the database as a reliability risk and evaluates Multi-AZ, failover, backup, and recovery behavior for the data dependency rather than stopping at frontend redundancy."
+      ],
+      "question": {
+        "answer": {
+          "optionId": "A",
+          "type": "choice_single"
+        },
+        "constraints": [
+          "Three stateless application replicas are distributed across Availability Zones.",
+          "Every replica depends on one database with no failover or independent recovery path.",
+          "The review asks for the primary Well-Architected risk represented by the finding."
+        ],
+        "difficulty": null,
+        "feedback": {
+          "details": {
+            "boundaryOrTradeoff": "Replicating stateless frontends does not remove a hard dependency; a single nonredundant dependency can determine the availability of the invoking workload.",
+            "errorCorrection": "The finding is not primarily a cost or sustainability label. A database that can interrupt every replica is a reliability risk even when frontend capacity spans Availability Zones.",
+            "mechanismOrProperty": "AWS defines reliability as a workload performing its intended function consistently and notes that hard dependency interruptions directly translate into interruptions of the invoking system.",
+            "scenarioApplication": "The review records the database as a reliability risk and evaluates Multi-AZ, failover, backup, and recovery behavior for the data dependency rather than stopping at frontend redundancy.",
+            "url": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/availability.html"
+          },
+          "messages": [
+            {
+              "kind": "wrong_option",
+              "targetId": "B",
+              "text": "The scenario does not identify a measured resource-efficiency problem; the immediate issue is the single dependency that can take the whole service offline."
+            },
+            {
+              "kind": "wrong_option",
+              "targetId": "C",
+              "text": "Extra frontend capacity may add cost, but cost is not the primary risk represented by a nonredundant database dependency."
+            },
+            {
+              "kind": "wrong_option",
+              "targetId": "D",
+              "text": "The stated failure mode is loss of workload function through a hard dependency, which is a reliability concern rather than a sustainability finding."
+            }
+          ],
+          "reason": "A single database with no failover remains a hard shared dependency, so it is a reliability risk even though the stateless application tier is redundant.",
+          "type": "choice_single"
+        },
+        "interaction": {
+          "options": [
+            {
+              "optionId": "A",
+              "text": "Record a reliability risk: the nonredundant database is a hard dependency that can take down all application replicas."
+            },
+            {
+              "optionId": "B",
+              "text": "Record only a performance-efficiency risk because any database dependency is a query-latency issue."
+            },
+            {
+              "optionId": "C",
+              "text": "Record only a cost-optimization risk because the application has more than one frontend replica."
+            },
+            {
+              "optionId": "D",
+              "text": "Record only a sustainability risk because the database is shared by multiple replicas."
+            }
+          ],
+          "scoringMethod": "exact_selected_set",
+          "type": "choice_single"
+        },
+        "mentalUnitId": "architecture_review",
+        "nodeId": "aws_secure_architecture_foundations",
+        "prompt": "A review finds three stateless application replicas across Availability Zones, but all three depend on one database with no failover or independent recovery path. What is the primary Well-Architected finding?",
+        "questionId": "aws-saa-c03-architecture-001-odk096",
+        "sourceRefs": [
+          "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/availability.html",
+          "https://docs.aws.amazon.com/wellarchitected/latest/framework/definitions.html"
+        ],
+        "trackId": "aws-certified-solutions-architect-associate"
+      }
+    }
+  ]
+}

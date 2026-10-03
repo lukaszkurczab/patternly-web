@@ -9,8 +9,16 @@ import { chromium } from "playwright";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
-const demo = JSON.parse(await readFile(resolve(root, "src/generated/codingDemoQuestion.json"), "utf8"));
+const demoCatalog = JSON.parse(await readFile(resolve(root, "src/generated/demoQuestions.json"), "utf8"));
+const codingDemo = demoCatalog.demos.find((entry) => entry.provenance.trackId === "coding-interview-dsa-problem-solving");
+const awsDemo = demoCatalog.demos.find((entry) => entry.provenance.trackId === "aws-certified-solutions-architect-associate");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
+
+async function assertDetailsParagraphs(page, demo) {
+  const paragraphs = page.locator("#session-details > p");
+  assert.equal(await paragraphs.count(), demo.detailsParagraphs.length);
+  assert.deepEqual(await paragraphs.allTextContents(), demo.detailsParagraphs);
+}
 
 test("built public site displays and resets the canonical demo at desktop and narrow widths", async () => {
   const server = createServer(async (request, response) => {
@@ -35,6 +43,8 @@ test("built public site displays and resets the canonical demo at desktop and na
       await page.setViewportSize({ width, height: 1800 });
       await page.goto(`http://127.0.0.1:${server.address().port}/`);
       await page.locator("#session-title").waitFor();
+      assert.equal(await page.locator('[data-track-id="aws-certified-solutions-architect-associate"]').getByRole("button", { name: "Try an AWS question", exact: true }).count(), 1, "The existing AWS catalog card must select its own bounded example.");
+      assert.equal(await page.locator('[data-track-id="coding-interview-dsa-problem-solving"]').getByRole("button", { name: "Try a coding question", exact: true }).count(), 1, "The existing Coding catalog card selects its bounded example.");
       await page.evaluate(() => document.fonts.ready);
       const panel = page.locator("#session");
       await panel.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
@@ -42,7 +52,7 @@ test("built public site displays and resets the canonical demo at desktop and na
         const reveal = document.querySelector("#session").closest(".reveal");
         return !reveal || (reveal.classList.contains("is-visible") && !reveal.inert && Number(getComputedStyle(reveal).opacity) >= 0.999);
       });
-      assert.equal(await page.locator("#session-title").textContent(), demo.question.prompt);
+      assert.equal(await page.locator("#session-title").textContent(), codingDemo.question.prompt);
       assert.equal(await page.getByRole("radio").count(), 4);
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
@@ -61,7 +71,7 @@ test("built public site displays and resets the canonical demo at desktop and na
         await page.keyboard.press("Tab");
         if (await page.evaluate(() => document.activeElement?.matches("#session input[type=radio]"))) break;
       }
-      assert.equal(await page.locator("#session input:focus").getAttribute("value"), demo.question.interaction.options[0].optionId);
+      assert.equal(await page.locator("#session input:focus").getAttribute("value"), codingDemo.question.interaction.options[0].optionId);
       const focusedAppearance = () => page.locator("#session input:focus + label").evaluate(async (label) => {
         await new Promise(requestAnimationFrame);
         await Promise.all(label.getAnimations().map((animation) => animation.finished));
@@ -89,33 +99,66 @@ test("built public site displays and resets the canonical demo at desktop and na
       assert.equal(await page.locator("#session-details").count(), 0);
       await page.keyboard.press("Shift+Tab");
       const keyboardEntry = await page.locator("#session input:focus").getAttribute("value");
-      let keyboardIndex = demo.question.interaction.options.findIndex((option) => option.optionId === keyboardEntry);
+      let keyboardIndex = codingDemo.question.interaction.options.findIndex((option) => option.optionId === keyboardEntry);
       assert.ok(keyboardIndex >= 0, "Reverse tab enters the native radio group.");
       for (let move = 0; move < 2; move += 1) {
         await page.keyboard.press("ArrowDown");
-        keyboardIndex = (keyboardIndex + 1) % demo.question.interaction.options.length;
-        const keyboardChoice = demo.question.interaction.options[keyboardIndex].optionId;
+        keyboardIndex = (keyboardIndex + 1) % codingDemo.question.interaction.options.length;
+        const keyboardChoice = codingDemo.question.interaction.options[keyboardIndex].optionId;
         assert.equal(await page.getByRole("radio", { checked: true }).getAttribute("value"), keyboardChoice);
-        assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), keyboardChoice === demo.question.answer.optionId ? demo.question.feedback.reason : demo.question.feedback.messages.find((message) => message.targetId === keyboardChoice).text);
+        assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), keyboardChoice === codingDemo.question.answer.optionId ? codingDemo.question.feedback.reason : codingDemo.question.feedback.messages.find((message) => message.targetId === keyboardChoice).text);
       }
       await screenshot("keyboard-focus");
       await page.getByRole("button", { name: /Try again/u }).click();
-      const wrong = demo.question.feedback.messages[0];
+      const wrong = codingDemo.question.feedback.messages[0];
       await page.locator(`#session-answer-${wrong.targetId} + label`).click();
       assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), wrong.text);
       assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
       assert.equal(await panel.locator("a").count(), 0, "Unavailable access state does not invent a destination.");
       await page.getByRole("button", { name: /See the key idea/u }).click();
-      assert.equal(await page.locator("#session-details").textContent(), demo.question.feedback.details.blocks.map((block) => block.text).join("\n\n"));
+      await assertDetailsParagraphs(page, codingDemo);
       await screenshot("wrong-details");
       await page.getByRole("button", { name: /Try again/u }).click();
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
       assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
-      await page.locator(`#session-answer-${demo.question.answer.optionId} + label`).click();
-      assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), demo.question.feedback.reason);
+      await page.locator(`#session-answer-${codingDemo.question.answer.optionId} + label`).click();
+      assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), codingDemo.question.feedback.reason);
       assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
       await screenshot("correct");
+
+      const chooseCoding = page.locator('[data-track-id="coding-interview-dsa-problem-solving"] button');
+      await chooseCoding.scrollIntoViewIfNeeded();
+      await chooseCoding.click();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "session-title", "Reactivating the current demo still returns focus to its question.");
+      assert.equal(await page.locator("#session").getAttribute("data-state"), "resolved", "Selecting the already active goal preserves the current answer.");
+
+      const chooseAws = page.locator('[data-track-id="aws-certified-solutions-architect-associate"] button');
+      await chooseAws.scrollIntoViewIfNeeded();
+      await chooseAws.click();
+      await page.waitForFunction((expectedPrompt) => document.querySelector("#session-title")?.textContent === expectedPrompt, awsDemo.question.prompt);
+      assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral", "Changing the demo clears Coding answer state.");
+      assert.equal(await page.getByRole("radiogroup").count(), 1);
+      assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
+      assert.equal(await page.locator("#session-details").count(), 0);
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "session-title", "Keyboard activation moves focus to the newly selected question.");
+      await page.keyboard.press("Tab");
+      assert.equal(await page.locator("#session input:focus").getAttribute("value"), awsDemo.question.interaction.options[0].optionId, "The selected question's native radio follows the focused heading in tab order.");
+      await page.keyboard.press("Space");
+      const awsSelected = awsDemo.question.interaction.options[0];
+      assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), awsSelected.optionId === awsDemo.question.answer.optionId ? awsDemo.question.feedback.reason : awsDemo.question.feedback.messages.find((message) => message.targetId === awsSelected.optionId).text);
+      await page.getByRole("button", { name: /See the key idea/u }).click();
+      await assertDetailsParagraphs(page, awsDemo);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
+      await screenshot("aws-details");
+      await chooseCoding.scrollIntoViewIfNeeded();
+      await chooseCoding.click();
+      await page.waitForFunction((expectedPrompt) => document.querySelector("#session-title")?.textContent === expectedPrompt, codingDemo.question.prompt);
+      assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral", "Switching back clears AWS answer state.");
+      assert.equal(await page.locator("#session-details").count(), 0);
+      assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
+      assert.equal(await page.getByRole("radiogroup").count(), 1);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
     }
     await browser.close();
     browser = null;
@@ -186,6 +229,18 @@ test("built public site displays and resets the canonical demo at desktop and na
     await zoomPage.keyboard.press("Space");
     assert.equal(await zoomPanel.locator("input:checked").count(), 0);
     assert.equal(await zoomPanel.locator("#session-details").count(), 0);
+    const zoomAwsAction = zoomPage.locator('[data-track-id="aws-certified-solutions-architect-associate"] button');
+    await zoomAwsAction.scrollIntoViewIfNeeded();
+    await zoomAwsAction.click();
+    await zoomPage.waitForFunction((expectedPrompt) => document.querySelector("#session-title")?.textContent === expectedPrompt, awsDemo.question.prompt);
+    assert.equal(await zoomPage.evaluate(() => document.activeElement?.id), "session-title");
+    await zoomPage.keyboard.press("Tab");
+    assert.equal(await zoomPanel.locator("input:focus").count(), 1, "Focus transfers from the selected card to the newly rendered AWS sample.");
+    await zoomPage.keyboard.press("Space");
+    await zoomPage.getByRole("button", { name: /See the key idea/u }).click();
+    await assertDetailsParagraphs(zoomPage, awsDemo);
+    assert.ok(await zoomPanel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), "AWS details fit the panel at real 200% Chrome zoom.");
+    assert.equal(await zoomPage.getByRole("radiogroup").count(), 1, "Only one demo remains mounted at real browser zoom.");
     assert.deepEqual(errors, [], "Built site has no browser runtime errors.");
   } finally {
     if (zoomContext) await zoomContext.close();

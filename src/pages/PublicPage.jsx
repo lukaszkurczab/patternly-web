@@ -7,24 +7,26 @@ import cloudIcon from "../../assets/icons/cloud.svg?raw";
 import settingsIcon from "../../assets/icons/settings.svg?raw";
 import cpuIcon from "../../assets/icons/cpu.svg?raw";
 import sparkleIcon from "../../assets/icons/sparkle.svg?raw";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Brand } from "../components/Brand";
 import { InteractiveQuestion } from "../components/InteractiveQuestion";
 import { Reveal } from "../hooks/useReveal";
+import demoCatalog from "../generated/demoQuestions.json";
 
 const publicLegal = __PATTERNLY_PUBLIC_LEGAL__;
 
 const tracks = [
-  { id: "coding-interview-dsa-problem-solving", name: "Coding Interview: DSA & Problem Solving", focus: "Find an approach to unfamiliar coding problems.", iconName: "route", svg: routeIcon },
+  { id: "coding-interview-dsa-problem-solving", name: "Coding Interview: DSA & Problem Solving", focus: "Find an approach to unfamiliar coding problems.", demoLabel: "Coding Interview", demoAction: "Try a coding question", demoNote: "This Coding Interview example uses one Free practice question. It does not save your progress or schedule reviews.", iconName: "route", svg: routeIcon },
   { id: "backend-system-design-interview", name: "Backend System Design Interview", focus: "Design reliable systems and explain your choices.", iconName: "database", svg: databaseIcon },
   { id: "object-oriented-design-interview", name: "Object-Oriented Design Interview", focus: "Turn requirements into clear, flexible object designs.", iconName: "grid", svg: gridIcon },
   { id: "frontend-system-design-interview", name: "Frontend System Design Interview", focus: "Plan interfaces that stay fast as they grow.", iconName: "device-phone", svg: devicePhoneIcon },
   { id: "google-cloud-associate-cloud-engineer", name: "Google Cloud Associate Cloud Engineer", focus: "Practice running and managing Google Cloud services.", legalNote: "Independent study content. Not affiliated with or endorsed by Google.", iconName: "server-stack", svg: serverStackIcon },
-  { id: "aws-certified-solutions-architect-associate", name: "AWS Certified Solutions Architect - Associate", focus: "Choose AWS services for real-world needs.", legalNote: "Independent study content. Not affiliated with or endorsed by Amazon Web Services.", iconName: "cloud", svg: cloudIcon },
+  { id: "aws-certified-solutions-architect-associate", name: "AWS Certified Solutions Architect - Associate", focus: "Choose AWS services for real-world needs.", legalNote: "Independent study content. Not affiliated with or endorsed by Amazon Web Services.", demoLabel: "AWS certification", demoAction: "Try an AWS question", demoNote: "This AWS certification example uses one Free practice question. It does not save your progress or schedule reviews.", iconName: "cloud", svg: cloudIcon },
   { id: "microsoft-azure-administrator-associate-az-104", name: "Microsoft Azure Administrator Associate AZ-104", focus: "Practice setting up and troubleshooting Azure.", legalNote: "Independent study content. Not affiliated with or endorsed by Microsoft.", iconName: "settings", svg: settingsIcon },
   { id: "microsoft-azure-ai-fundamentals-ai-901", name: "Microsoft Azure AI Fundamentals AI-901", focus: "Learn AI concepts and when to use Azure AI services.", legalNote: "Independent study content. Not affiliated with or endorsed by Microsoft.", iconName: "cpu", svg: cpuIcon },
   { id: "claude-certified-architect-professional-certification", name: "Claude Certified Architect – Professional", focus: "Independent practice for designing and operating production Claude systems, from solution architecture and evaluation to governance and delivery.", legalNote: "Independent study content. Not affiliated with or endorsed by Anthropic.", iconName: "sparkle", svg: sparkleIcon },
 ];
+const demosByTrackId = new Map(demoCatalog.demos.map((demo) => [demo.provenance.trackId, demo]));
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,7 +83,7 @@ function Header() {
   );
 }
 
-function Hero() {
+function Hero({ selectedTrack, question, titleRef }) {
   return (
     <section className="hero section-shell" id="product" aria-labelledby="hero-title">
       <Reveal className="hero-copy">
@@ -94,7 +96,7 @@ function Hero() {
         </div>
         <p className="hero-note"><span className="status-dot" aria-hidden="true" /> Try a question. No account needed.</p>
       </Reveal>
-      <Reveal className="hero-practice reveal-delay"><InteractiveQuestion /></Reveal>
+      <Reveal className="hero-practice reveal-delay"><InteractiveQuestion key={`${selectedTrack.id}:${question.provenance.questionId}`} demo={question} progressNote={selectedTrack.demoNote} titleRef={titleRef} trackLabel={selectedTrack.demoLabel} /></Reveal>
     </section>
   );
 }
@@ -122,7 +124,7 @@ function MethodSection() {
   );
 }
 
-function TracksSection() {
+function TracksSection({ selectedTrackId, onSelectTrack }) {
   return (
     <section className="content-section tracks-section section-shell" id="tracks" aria-labelledby="tracks-title">
       <Reveal className="section-intro centered">
@@ -140,6 +142,7 @@ function TracksSection() {
               dangerouslySetInnerHTML={{ __html: track.svg }}
             />
             <div><h3>{track.name}</h3><p>{track.focus}</p>{track.legalNote ? <p className="track-legal-note">{track.legalNote}</p> : null}</div>
+            {demosByTrackId.has(track.id) ? <button aria-pressed={selectedTrackId === track.id} className="track-demo-button" onClick={() => onSelectTrack(track.id)} type="button">{track.demoAction}</button> : null}
           </article>
         ))}
       </Reveal>
@@ -158,11 +161,33 @@ function Footer() {
 }
 
 export function PublicPage() {
+  const [selectedTrackId, setSelectedTrackId] = useState("coding-interview-dsa-problem-solving");
+  const questionTitleRef = useRef(null);
+  const previousTrackId = useRef(selectedTrackId);
+  const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
+  const selectedQuestion = demosByTrackId.get(selectedTrackId);
+
+  const selectTrack = (trackId) => {
+    if (trackId !== selectedTrackId) {
+      setSelectedTrackId(trackId);
+      return;
+    }
+    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    questionTitleRef.current?.focus({ preventScroll: true });
+  };
+
+  useLayoutEffect(() => {
+    if (previousTrackId.current === selectedTrackId) return;
+    previousTrackId.current = selectedTrackId;
+    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    questionTitleRef.current?.focus({ preventScroll: true });
+  }, [selectedTrackId]);
+
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <Header />
-      <main id="main-content" tabIndex={-1}><Hero /><MethodSection /><TracksSection /></main>
+      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><TracksSection selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /></main>
       <Footer />
     </>
   );

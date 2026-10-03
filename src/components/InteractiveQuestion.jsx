@@ -1,12 +1,9 @@
 import { useState } from "react";
-import demo from "../generated/codingDemoQuestion.json";
 
-const question = demo.question;
-const options = question.interaction.options;
-const correctOptionId = question.answer.optionId;
-const details = question.feedback.details.blocks.map((block) => block.text).join("\n\n");
-
-export function InteractiveQuestion() {
+export function InteractiveQuestion({ demo, trackLabel, progressNote, titleRef }) {
+  const question = demo.question;
+  const options = question.interaction.options;
+  const correctOptionId = question.answer.optionId;
   const [selected, setSelected] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const selectedOption = options.find((option) => option.optionId === selected);
@@ -25,10 +22,10 @@ export function InteractiveQuestion() {
 
   return (
     <section className="practice-panel" id="session" aria-labelledby="session-title" data-state={state}>
-      <div className="practice-topbar"><span>Coding Interview · Complexity</span><span>No timer</span></div>
+      <div className="practice-topbar"><span>{trackLabel}</span><span>No timer</span></div>
       <div className="practice-question">
         <p className="question-label">Practice question</p>
-        <h2 id="session-title">{question.prompt}</h2>
+        <h2 id="session-title" ref={titleRef} tabIndex={-1}>{question.prompt}</h2>
       </div>
       <div className="practice-options" role="radiogroup" aria-labelledby="session-title">
         {options.map((option, index) => {
@@ -49,7 +46,7 @@ export function InteractiveQuestion() {
           <button className="details-button" type="button" aria-controls={detailsOpen ? "session-details" : undefined} aria-expanded={detailsOpen} onClick={() => setDetailsOpen((open) => !open)}>
             See the key idea <span aria-hidden="true">{detailsOpen ? "－" : "＋"}</span>
           </button>
-          {detailsOpen && <p className="details-copy" id="session-details">{details}</p>}
+          {detailsOpen && <div className="details-copy" id="session-details">{demo.detailsParagraphs.map((paragraph, index) => <p key={`${question.questionId}:detail:${index}`}>{paragraph}</p>)}</div>}
         </>}
       </div>
       <div className="practice-actions">
@@ -57,7 +54,7 @@ export function InteractiveQuestion() {
         <span className="practice-status" aria-live="polite">{selectedOption ? (isCorrect ? "Correct — well done" : "Not quite — take another look") : "Ready when you are"}</span>
       </div>
       {selected !== null && <p className="practice-note">This page does not offer a link to access the app yet.</p>}
-      <p className="practice-note">This Coding Interview example uses one Free practice question. It does not save your progress or schedule reviews.</p>
+      <p className="practice-note">{progressNote}</p>
     </section>
   );
 }
