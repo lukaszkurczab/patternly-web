@@ -56,6 +56,7 @@ export function InteractiveQuestion() {
         <button className="button button-primary" type="button" onClick={reset}>Try again <span aria-hidden="true">↺</span></button>
         <span className="practice-status" aria-live="polite">{selectedOption ? (isCorrect ? "Correct — well done" : "Not quite — take another look") : "Ready when you are"}</span>
       </div>
+      {selected !== null && <p className="practice-note">This page does not offer a link to access the app yet.</p>}
       <p className="practice-note">This Coding Interview example uses one Free practice question. It does not save your progress or schedule reviews.</p>
     </section>
   );

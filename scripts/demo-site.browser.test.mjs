@@ -43,6 +43,7 @@ test("built public site displays and resets the canonical demo at desktop and na
       assert.equal(await page.getByRole("radio").count(), 4);
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
       assert.ok(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `Demo panel overflows at width ${width}`);
       const screenshot = async (state) => {
         assert.ok(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `Demo panel overflows in ${state} at width ${width}`);
@@ -55,14 +56,18 @@ test("built public site displays and resets the canonical demo at desktop and na
       const wrong = demo.question.feedback.messages[0];
       await page.locator(`#session-answer-${wrong.targetId} + label`).click();
       assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), wrong.text);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
+      assert.equal(await panel.locator("a").count(), 0, "Unavailable access state does not invent a destination.");
       await page.getByRole("button", { name: /See the key idea/u }).click();
       assert.equal(await page.locator("#session-details").textContent(), demo.question.feedback.details.blocks.map((block) => block.text).join("\n\n"));
       await screenshot("wrong-details");
       await page.getByRole("button", { name: /Try again/u }).click();
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
       await page.locator(`#session-answer-${demo.question.answer.optionId} + label`).click();
       assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), demo.question.feedback.reason);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
       await screenshot("correct");
     }
     assert.deepEqual(errors, [], "Built site has no browser runtime errors.");

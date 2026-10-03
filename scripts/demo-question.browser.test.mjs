@@ -55,6 +55,7 @@ test("mounted Coding demo binds feedback to stable option IDs under every displa
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral");
       assert.equal(await page.getByText("Choose an answer to see why.").count(), 1);
+      assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
       assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
       for (const [index, optionId] of order.entries()) {
         assert.equal(await page.locator(`#session-answer-${optionId} + label span`).textContent(), String.fromCharCode(65 + index));
@@ -65,6 +66,7 @@ test("mounted Coding demo binds feedback to stable option IDs under every displa
         assert.equal(await page.locator("#session").getAttribute("data-state"), option.optionId === answerId ? "resolved" : "focused");
         assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), option.optionId === answerId ? payload.question.feedback.reason : wrongById.get(option.optionId));
         assert.match(await page.locator(".practice-status").textContent(), option.optionId === answerId ? /Correct/u : /Not quite/u);
+        assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
         await page.getByRole("button", { name: /See the key idea/u }).click();
         assert.equal(await page.getByRole("button", { name: /See the key idea/u }).getAttribute("aria-expanded"), "true");
         assert.equal(await page.locator("#session-details").textContent(), payload.question.feedback.details.blocks.map((block) => block.text).join("\n\n"));
@@ -73,6 +75,7 @@ test("mounted Coding demo binds feedback to stable option IDs under every displa
         assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
         assert.equal(await page.locator("#session-details").count(), 0);
         assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
+        assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
       }
     }
   } finally {
