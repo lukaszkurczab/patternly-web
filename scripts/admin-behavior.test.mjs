@@ -23,7 +23,7 @@ const entry = (status = "open", id = "11111111-1111-4111-8111-111111111111") => 
   reason: "other", description: "Opis zgłoszenia do testu komponentu.", status,
   createdAt: "2026-09-03T08:00:00Z", context: {},
 });
-const privacyEntry = (status = "received", revision = 0) => ({ requestId: "pr_11111111-1111-4111-8111-111111111111", right: "access", channel: "account", status, outcome: status === "fulfilled" ? "fulfilled" : null, receivedAt: "2026-09-03T08:00:00Z", deadlineAt: "2026-10-03T08:00:00Z", deliveredAt: status === "fulfilled" ? "2026-09-04T08:00:00Z" : null, revision, narrative: "Proszę o kopię danych", reportSubmissionIds: [], reason: null, executionEvidence: null, responseAvailableUntil: null, subjectVerified: true });
+const privacyEntry = (status = "received", revision = 0) => ({ requestId: "pr_11111111-1111-4111-8111-111111111111", right: "access", channel: "account", status, outcome: status === "fulfilled" ? "fulfilled" : null, receivedAt: "2026-09-03T08:00:00Z", deadlineAt: "2026-10-03T08:00:00Z", deliveredAt: status === "fulfilled" ? "2026-09-04T08:00:00Z" : null, revision, extendedAt: null, extensionNoticeStatus: null, narrative: "Proszę o kopię danych", reportSubmissionIds: [], reason: null, executionEvidence: null, responseAvailableUntil: null, subjectVerified: true });
 const legalEntry = (overrides = {}) => ({ requestId: "lr_11111111-1111-4111-8111-111111111111", kind: "complaint", status: "received", receivedAt: "2026-09-03T08:00:00Z", responseDueAt: "2026-09-17T08:00:00Z", answeredAt: null, retentionUntil: null, response: null, legalHold: false, revision: 0, ...overrides });
 const incidentEntry = (overrides = {}) => ({ incidentId: "si_11111111-1111-4111-8111-111111111111", classification: "triage", authorityDecision: "undecided", authorityDeliveryStatus: "not_started", subjectDecision: "undecided", subjectNotificationStatus: "not_started", awarenessAt: null, authorityDeadlineAt: null, closedAt: null, revision: 0, legalHold: false, nextAction: "acknowledge_awareness", ...overrides });
 const incidentAssessment = (overrides = {}) => ({ details: "Poufny opis: recipient@example.com; wewnętrzna ocena.", detectedAt: "2026-09-03T07:00:00Z", occurredAt: "2026-09-03T06:30:00Z", categories: "Dane konta", dataSubjectCount: "2", recordCount: "4", specialData: false, confidentialityImpact: "Niski", integrityImpact: "Brak", availabilityImpact: "Brak", consequences: "Weryfikacja", likelihood: "Niskie", severity: "Niska", containment: "Dostęp ograniczony", remediation: "Dane zweryfikowane", prevention: "Monitoring", postmortem: "Przegląd zakończony", ...overrides });
@@ -197,6 +197,7 @@ before(async () => {
     : viteConfig;
   server = await createServer({
     ...resolvedViteConfig, configFile: false, root,
+    cacheDir: resolve(legalFixtureDirectory, "vite-cache"),
     server: { host: "127.0.0.1", port, strictPort: true },
     resolve: { alias: {
       "firebase/app": resolve(root, "scripts/admin-behavior/firebase-app.mjs"),
@@ -344,6 +345,117 @@ test("privacy queue opens details and runs only the server-owned export executor
   assert.equal(state.privacy[0].status, "response_ready");
   const actions = state.requests.filter((request) => request.method === "PATCH");
   assert.equal(actions.length, 2);
+});
+
+// CH-04: controlled HTTP payloads exercise the actual mounted panel.
+const invalidPrivacyListFields = [
+  { requestId: "" }, { right: "toString" }, { right: "__proto__" }, { status: "constructor" },
+  { revision: -1 }, { revision: 0.5 }, { revision: Number.MAX_SAFE_INTEGER + 1 },
+  { channel: "other" }, { receivedAt: null }, { deadlineAt: "invalid" },
+  { deadlineAt: "2026-02-30T08:00:00Z" }, { deliveredAt: 17 },
+  { extendedAt: "invalid" }, { outcome: "constructor" }, { channel: undefined }, { outcome: undefined },
+];
+const invalidPrivacyDetailFields = [
+  { reportSubmissionIds: 17 }, { reportSubmissionIds: [17] }, { reportSubmissionIds: null },
+  { narrative: {} }, { reason: false }, { executionEvidence: 17 },
+  { responseAvailableUntil: "invalid" }, { subjectVerified: "true" },
+  { extensionNoticeStatus: "constructor" },
+  ...["reportSubmissionIds", "narrative", "reason", "executionEvidence", "responseAvailableUntil", "subjectVerified", "extensionNoticeStatus"].map((key) => ({ [key]: undefined })),
+];
+
+test("CH-04 privacy list rejects malformed wire fields without rendering actions", async (t) => {
+  const { page, state, login } = await screen(t);
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  await login();
+  const panel = page.locator(".admin-privacy-queue");
+  for (const fields of invalidPrivacyListFields) {
+    state.privacy = [{ ...privacyEntry(), ...fields }];
+    await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+    await expect(panel.getByText("Otrzymano nieprawidłową kolejkę.")).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Otwórz szczegóły" })).toHaveCount(0);
+  }
+  assert.equal(state.requests.filter((r) => r.method === "PATCH").length, 0);
+  assert.deepEqual(errors, []);
+});
+
+test("CH-04 privacy detail rejects malformed or wrong-identity payloads and clears prior actions", async (t) => {
+  const { page, state, login } = await screen(t);
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  await login();
+  const panel = page.locator(".admin-privacy-queue");
+  state.privacy = [privacyEntry()];
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  for (const fields of [...invalidPrivacyListFields, ...invalidPrivacyDetailFields, { requestId: "different-request" }]) {
+    state.handler = null;
+    await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+    await expect(panel.getByRole("region", { name: "Szczegóły wniosku" })).toBeVisible();
+    state.handler = async (route) => {
+      if (route.request().method() !== "GET" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
+      await route.fulfill({ json: { request: { ...privacyEntry(), ...fields } } }); return true;
+    };
+    await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+    await expect(panel.getByText("Otrzymano nieprawidłowe szczegóły.")).toBeVisible();
+    await expect(panel.getByRole("region", { name: "Szczegóły wniosku" })).toHaveCount(0);
+  }
+  assert.equal(state.requests.filter((r) => r.method === "PATCH").length, 0);
+  assert.deepEqual(errors, []);
+});
+
+test("CH-04 invalid PATCH confirmation clears mutation controls; valid nullable details remain usable", async (t) => {
+  const { page, state, login } = await screen(t);
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  await login();
+  const panel = page.locator(".admin-privacy-queue");
+  for (const fields of [...invalidPrivacyListFields, ...invalidPrivacyDetailFields, { requestId: "different-request" }]) {
+    state.handler = null;
+    state.privacy = [{ ...privacyEntry(), narrative: null }];
+    await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+    await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+    await expect(panel.getByText("Nie podano", { exact: true })).toBeVisible();
+    state.handler = async (route) => {
+      if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
+      await route.fulfill({ json: { request: { ...privacyEntry("in_review", 1), ...fields } } }); return true;
+    };
+    const before = state.requests.filter((r) => r.method === "PATCH").length;
+    await panel.getByRole("button", { name: "Rozpocznij analizę", exact: true }).click();
+    await expect(panel.getByText("Serwer nie potwierdził zmiany.")).toBeVisible();
+    await expect(panel.getByRole("region", { name: "Szczegóły wniosku" })).toHaveCount(0);
+    assert.equal(state.requests.filter((r) => r.method === "PATCH").length, before + 1);
+  }
+  assert.deepEqual(errors, []);
+});
+
+test("CH-04 accepts producer-shaped minimal lists and canonical nullable/non-null detail states", async (t) => {
+  const { page, state, login } = await screen(t);
+  const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  await login();
+  const panel = page.locator(".admin-privacy-queue");
+  const statuses = ["received", "identity_verification_required", "in_review", "response_ready", "fulfilled", "partially_fulfilled", "refused", "closed"];
+  const rights = ["access", "rectification", "erasure", "restriction", "objection", "portability", "consent_withdrawal"];
+  const notices = [null, "available_in_app", "pending", "delivered", "failed"];
+  for (let index = 0; index < statuses.length; index += 1) {
+    const full = { ...privacyEntry(statuses[index], index), right: rights[index % rights.length],
+      channel: index % 2 ? "public" : "account", subjectVerified: index % 2 === 0,
+      outcome: index >= 3 ? "fulfilled" : null, narrative: index % 2 ? "Opis szczegółów" : null,
+      reason: index % 2 ? "Uzasadnienie" : null, executionEvidence: index % 2 ? "operator_refusal_decision" : null,
+      responseAvailableUntil: index % 2 ? "2026-10-05T08:00:00.000Z" : null,
+      extendedAt: index % 2 ? "2026-09-04T08:00:00.000Z" : null,
+      deliveredAt: index >= 4 ? "2026-09-05T08:00:00.000Z" : null,
+      reportSubmissionIds: ["11111111-1111-4111-8111-111111111111"], extensionNoticeStatus: notices[index % notices.length] };
+    const keys = ["requestId", "right", "channel", "status", "outcome", "receivedAt", "deadlineAt", "deliveredAt", "extendedAt", "revision"];
+    state.privacy = [Object.fromEntries(keys.map((key) => [key, full[key]]))];
+    state.handler = async (route) => {
+      if (route.request().method() !== "GET" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
+      await route.fulfill({ json: { request: full } }); return true;
+    };
+    await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+    await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+    await expect(panel.getByRole("region", { name: "Szczegóły wniosku" })).toBeVisible();
+    await expect(panel.getByText(full.narrative || "Nie podano", { exact: true })).toBeVisible();
+    await expect(panel.getByText(full.reportSubmissionIds[0], { exact: true })).toBeVisible();
+  }
+  assert.equal(state.requests.filter((r) => r.method === "PATCH").length, 0);
+  assert.deepEqual(errors, []);
 });
 
 test("legal request queue performs the canonical consumer-case actions with revisions", async (t) => {

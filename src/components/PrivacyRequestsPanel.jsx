@@ -3,7 +3,29 @@ import { adminApiOrigin } from "../adminConfig";
 
 const RIGHT = { access: "Dostęp", rectification: "Sprostowanie", erasure: "Usunięcie", restriction: "Ograniczenie", objection: "Sprzeciw", portability: "Przenoszenie", consent_withdrawal: "Wycofanie zgody" };
 const STATUS = { received: "Przyjęty", identity_verification_required: "Weryfikacja", in_review: "W analizie", response_ready: "Odpowiedź gotowa", fulfilled: "Zrealizowany", partially_fulfilled: "Częściowo", refused: "Odmowa", closed: "Zamknięty" };
-const validItem = (value) => value && typeof value.requestId === "string" && RIGHT[value.right] && STATUS[value.status] && Number.isSafeInteger(value.revision);
+// These two wire shapes mirror the backend list projection and readAdmin details.
+const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const nullableString = (value) => value === null || typeof value === "string";
+const validDate = (value) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(value)) return false;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString() === (value.includes(".") ? value : value.replace(/Z$/u, ".000Z"));
+};
+const nullableDate = (value) => value === null || validDate(value);
+const validListItem = (value) => isRecord(value)
+  && typeof value.requestId === "string" && value.requestId.trim().length > 0
+  && typeof value.right === "string" && Object.hasOwn(RIGHT, value.right)
+  && typeof value.status === "string" && Object.hasOwn(STATUS, value.status)
+  && ["account", "public"].includes(value.channel)
+  && (value.outcome === null || ["fulfilled", "partially_fulfilled", "refused"].includes(value.outcome))
+  && validDate(value.receivedAt) && validDate(value.deadlineAt)
+  && nullableDate(value.deliveredAt) && nullableDate(value.extendedAt)
+  && Number.isSafeInteger(value.revision) && value.revision >= 0;
+const validDetails = (value, requestId) => validListItem(value) && value.requestId === requestId
+  && nullableString(value.narrative) && nullableString(value.reason) && nullableString(value.executionEvidence)
+  && Array.isArray(value.reportSubmissionIds) && value.reportSubmissionIds.every((id) => typeof id === "string")
+  && nullableDate(value.responseAvailableUntil) && typeof value.subjectVerified === "boolean"
+  && (value.extensionNoticeStatus === null || ["available_in_app", "pending", "delivered", "failed"].includes(value.extensionNoticeStatus));
 
 async function request(user, path, options = {}) {
   const token = await user.getIdToken();
@@ -32,7 +54,7 @@ export function PrivacyRequestsPanel({ user }) {
     try {
       const payload = await request(user, "/v1/admin/privacy-requests");
       if (epoch.current !== current) return;
-      if (!Array.isArray(payload?.requests) || !payload.requests.every(validItem)) throw new Error("Otrzymano nieprawidłową kolejkę.");
+      if (!Array.isArray(payload?.requests) || !payload.requests.every(validListItem)) throw new Error("Otrzymano nieprawidłową kolejkę.");
       setItems(payload.requests); setStatus(payload.requests.length ? `Wniosków: ${payload.requests.length}` : "Brak wniosków.");
     } catch (error) { if (epoch.current === current) setStatus(error.message); }
     finally { if (epoch.current === current) { busyRef.current = false; setBusy(false); } }
@@ -45,10 +67,11 @@ export function PrivacyRequestsPanel({ user }) {
     const current = epoch.current;
     busyRef.current = true;
     setBusy(true); setStatus("Pobieranie szczegółów…");
+    setSelected(null);
     try {
       const payload = await request(user, `/v1/admin/privacy-requests/${encodeURIComponent(item.requestId)}`);
       if (epoch.current !== current) return;
-      if (!validItem(payload?.request)) throw new Error("Otrzymano nieprawidłowe szczegóły.");
+      if (!validDetails(payload?.request, item.requestId)) throw new Error("Otrzymano nieprawidłowe szczegóły.");
       setSelected(payload.request); setReason(payload.request.reason || ""); setStatus("");
     } catch (error) { if (epoch.current === current) setStatus(error.message); }
     finally { if (epoch.current === current) { busyRef.current = false; setBusy(false); } }
@@ -62,7 +85,10 @@ export function PrivacyRequestsPanel({ user }) {
     try {
       const payload = await request(user, `/v1/admin/privacy-requests/${encodeURIComponent(selected.requestId)}`, { method: "PATCH", body: JSON.stringify({ ...body, expectedRevision: selected.revision }) });
       if (epoch.current !== current) return;
-      if (!validItem(payload?.request)) throw new Error("Serwer nie potwierdził zmiany.");
+      if (!validDetails(payload?.request, selected.requestId)) {
+        setSelected(null);
+        throw new Error("Serwer nie potwierdził zmiany.");
+      }
       setSelected(payload.request);
       setItems((current) => current.map((item) => item.requestId === payload.request.requestId ? payload.request : item));
       setStatus("Zmiana została zapisana i zarejestrowana w audycie.");
