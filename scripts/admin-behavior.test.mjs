@@ -342,6 +342,7 @@ test("privacy queue opens details and runs only the server-owned export executor
   await expect(page.getByText("Proszę o kopię danych")).toBeVisible();
   await page.getByRole("button", { name: "Rozpocznij analizę" }).last().click();
   await page.getByRole("button", { name: "Wykonaj bezpieczny eksport" }).click();
+  await expect.poll(() => state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/privacy-requests/")).map((request) => request.body.action)).toEqual(["start_review", "execute_export"]);
   assert.equal(state.privacy[0].status, "response_ready");
   const actions = state.requests.filter((request) => request.method === "PATCH");
   assert.equal(actions.length, 2);
@@ -401,25 +402,35 @@ test("CH-04 privacy detail rejects malformed or wrong-identity payloads and clea
   assert.deepEqual(errors, []);
 });
 
-test("CH-04 invalid PATCH confirmation clears mutation controls; valid nullable details remain usable", async (t) => {
+test("CH-04 malformed dispatched PATCH confirmation clears stale details and remains latched", async (t) => {
   const { page, state, login } = await screen(t);
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
   await login();
   const panel = page.locator(".admin-privacy-queue");
-  for (const fields of [...invalidPrivacyListFields, ...invalidPrivacyDetailFields, { requestId: "different-request" }]) {
+  const malformedConfirmations = [...invalidPrivacyListFields, ...invalidPrivacyDetailFields, { requestId: "different-request" }];
+  for (const [index, fields] of malformedConfirmations.entries()) {
+    // Use a distinct server resource for each malformed confirmation. Each
+    // dispatched PATCH remains uncertain, so repeating the same resource
+    // would correctly be blocked by the CH-05 latch.
+    const requestId = `pr_11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`;
     state.handler = null;
-    state.privacy = [{ ...privacyEntry(), narrative: null }];
+    state.privacy = [{ ...privacyEntry(), requestId, narrative: null }];
     await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
     await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
     await expect(panel.getByText("Nie podano", { exact: true })).toBeVisible();
     state.handler = async (route) => {
-      if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
-      await route.fulfill({ json: { request: { ...privacyEntry("in_review", 1), ...fields } } }); return true;
+      if (route.request().method() !== "PATCH" || new URL(route.request().url()).pathname !== `/v1/admin/privacy-requests/${requestId}`) return false;
+      await route.fulfill({ json: { request: { ...privacyEntry("in_review", 1), requestId, ...fields } } }); return true;
     };
     const before = state.requests.filter((r) => r.method === "PATCH").length;
     await panel.getByRole("button", { name: "Rozpocznij analizę", exact: true }).click();
-    await expect(panel.getByText("Serwer nie potwierdził zmiany.")).toBeVisible();
+    await expect(panel.getByText(/Wynik zapisu jest niepewny/u)).toBeVisible();
     await expect(panel.getByRole("region", { name: "Szczegóły wniosku" })).toHaveCount(0);
+    assert.equal(state.requests.filter((r) => r.method === "PATCH").length, before + 1);
+    state.handler = null;
+    await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+    await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+    await expect(panel.getByRole("button", { name: "Rozpocznij analizę" })).toBeDisabled();
     assert.equal(state.requests.filter((r) => r.method === "PATCH").length, before + 1);
   }
   assert.deepEqual(errors, []);
@@ -592,7 +603,7 @@ test("security incident creation sends the complete current assessment contract"
   assert.equal(Object.hasOwn(post.body, "clientRequestId"), false);
 });
 
-test("uncertain security incident creation blocks retry until a refresh", async (t) => {
+test("uncertain security incident creation stays blocked after refresh", async (t) => {
   const { page, state, login } = await screen(t);
   await login();
   const panel = page.locator(".admin-security-queue");
@@ -625,12 +636,12 @@ test("uncertain security incident creation blocks retry until a refresh", async 
   };
   const createButton = panel.getByRole("button", { name: "Utwórz incydent" });
   await createButton.click();
-  await expect(panel.getByRole("alert")).toContainText(/odśwież listę/u);
+  await expect(panel.getByRole("alert")).toContainText(/wynik utworzenia jest niepewny/iu);
   await expect(createButton).toBeDisabled();
   assert.equal(state.requests.filter((request) => request.method === "POST" && request.path === "/v1/admin/security-incidents").length, 1);
   state.handler = null;
   await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
-  await expect(createButton).toBeEnabled();
+  await expect(createButton).toBeDisabled();
 });
 
 test("security incident writes send expectedRevision and a 409 locks until refresh", async (t) => {
@@ -659,7 +670,7 @@ test("security incident writes send expectedRevision and a 409 locks until refre
   await expect(panel.locator("form").filter({ hasText: "Klasyfikacja" }).first().getByRole("button", { name: "Zapisz klasyfikację" })).toBeEnabled();
 });
 
-test("security incident copy explains manual UODO handling and unknown SMTP is explicit", async (t) => {
+test("security incident copy explains manual UODO handling and a 503 write stays uncertain", async (t) => {
   const { page, state, login } = await screen(t);
   const incident = incidentEntry({ classification: "breach_confirmed", awarenessAt: "2026-09-07T08:00:00Z", authorityDeadlineAt: "2026-09-10T08:00:00Z", authorityDecision: "not_required", subjectDecision: "required", subjectNotificationStatus: "prepared" });
   state.incidents = [incident];
@@ -673,7 +684,8 @@ test("security incident copy explains manual UODO handling and unknown SMTP is e
   await expect(panel.getByText("Te próby dotyczą wcześniejszej wersji zawiadomienia i są nieaktywne.", { exact: true })).toBeVisible();
   state.handler = async (route) => { if (route.request().url().includes("/v1/admin/security-incidents/") && route.request().method() === "PATCH") { await route.fulfill({ status: 503, json: { error: { code: "security_incident_email_unavailable" } } }); return true; } return false; };
   await panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" }).click();
-  await expect(panel.getByRole("alert")).toContainText("SMTP");
+  await expect(panel.getByRole("alert")).toContainText("Wynik doręczenia jest niepewny");
+  await expect(panel.getByRole("alert")).not.toContainText("SMTP");
   await expect(panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" })).toBeDisabled();
 });
 
@@ -1045,3 +1057,480 @@ test("question read failure is explicit and retry restores results", async (t) =
   await page.getByRole("button", { name: "Odśwież dane", exact: true }).click();
   await expect(page.locator(".admin-question > summary")).toContainText("Which choice preserves ordering?");
 });
+
+test("CH-05 capability probe: mounted localhost page supports SHA-256 WebCrypto", async (t) => {
+  const { page, login } = await screen(t);
+  await login();
+  const digest = await page.evaluate(async () => {
+    if (!globalThis.crypto?.subtle) return null;
+    const bytes = new TextEncoder().encode("Patternly CH-05 capability probe");
+    const result = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(result), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  });
+  assert.match(digest || "", /^[a-f0-9]{64}$/u);
+});
+
+test("CH-05 transport deadline timer is cleared after a successful mounted request", async (t) => {
+  const { page, login, ready } = await screen(t);
+  await login(); await ready();
+  await page.evaluate(() => {
+    const originalSet = window.setTimeout.bind(window);
+    const originalClear = window.clearTimeout.bind(window);
+    window.ch05DeadlineTimers = { created: [], cleared: [] };
+    window.setTimeout = (callback, delay, ...args) => {
+      const id = originalSet(callback, delay, ...args);
+      if (delay === 12000) window.ch05DeadlineTimers.created.push(id);
+      return id;
+    };
+    window.clearTimeout = (id) => {
+      if (window.ch05DeadlineTimers.created.includes(id)) window.ch05DeadlineTimers.cleared.push(id);
+      return originalClear(id);
+    };
+  });
+  const panel = page.locator(".admin-privacy-queue");
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect(panel.getByText("Brak wniosków.")).toBeVisible();
+  const timers = await page.evaluate(() => window.ch05DeadlineTimers);
+  assert.equal(timers.created.length, 1);
+  assert.deepEqual(timers.cleared, timers.created);
+});
+
+test("CH-05 regression: a read deadline releases the panel after fetch never settles", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  await page.clock.install();
+  await page.evaluate(() => {
+    const original = window.fetch;
+    let first = true;
+    window.ch05FetchCalls = 0;
+    window.fetch = (input, options) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/v1/admin/privacy-requests")) window.ch05FetchCalls += 1;
+      if (first && url.includes("/v1/admin/privacy-requests")) {
+        first = false;
+        window.ch05FetchSignal = options.signal;
+        return new Promise(() => {});
+      }
+      return original(input, options);
+    };
+  });
+  const panel = page.locator(".admin-privacy-queue");
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  const before = state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length;
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect.poll(() => page.evaluate(() => window.ch05FetchCalls)).toBe(1);
+  await page.clock.runFor(12001);
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  assert.equal(await page.evaluate(() => window.ch05FetchSignal?.aborted), true);
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect(panel.getByText("Brak wniosków.")).toBeVisible();
+  assert.equal(state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length, before + 1);
+});
+
+test("CH-05 regression: body-read deadline aborts and a successful refresh can follow", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  await page.clock.install();
+  await page.evaluate(() => {
+    const original = window.fetch;
+    let first = true;
+    window.ch05FetchCalls = 0;
+    window.fetch = (input, options) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/v1/admin/privacy-requests")) window.ch05FetchCalls += 1;
+      if (first && url.includes("/v1/admin/privacy-requests")) {
+        first = false;
+        const body = new ReadableStream({ start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"requests":'));
+          options?.signal?.addEventListener("abort", () => controller.error(new DOMException("Aborted", "AbortError")), { once: true });
+        } });
+        window.ch05BodySignal = options.signal;
+        return Promise.resolve(new Response(body, { headers: { "content-type": "application/json" } }));
+      }
+      return original(input, options);
+    };
+  });
+  const panel = page.locator(".admin-privacy-queue");
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  const before = state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length;
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect.poll(() => page.evaluate(() => window.ch05FetchCalls)).toBe(1);
+  await page.clock.runFor(12001);
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  assert.equal(await page.evaluate(() => window.ch05BodySignal?.aborted), true);
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect(panel.getByText("Brak wniosków.")).toBeVisible();
+  assert.equal(state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length, before + 1);
+});
+
+test("CH-05 regression: a timed-out late token cannot dispatch fetch", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  await page.clock.install();
+  await page.evaluate(() => {
+    adminTestAuth.tokenMode = "pending";
+    adminTestAuth.tokens.length = 0;
+    const original = window.fetch;
+    window.ch05LateFetchCalls = 0;
+    window.fetch = (input, options) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.includes("/v1/admin/privacy-requests")) window.ch05LateFetchCalls += 1;
+      return original(input, options);
+    };
+  });
+  await expect(page.locator(".admin-privacy-queue").getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  const before = state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length;
+  await page.locator(".admin-privacy-queue").getByRole("button", { name: "Odśwież wnioski" }).click();
+  await expect.poll(() => page.evaluate(() => adminTestAuth.tokens.length)).toBeGreaterThan(0);
+  await page.clock.runFor(12001);
+  await page.evaluate(() => {
+    adminTestAuth.tokens.splice(0).forEach((finish) => finish());
+    adminTestAuth.tokenMode = "success";
+  });
+  await page.clock.runFor(50);
+  assert.equal(await page.evaluate(() => window.ch05LateFetchCalls), 0);
+  assert.equal(state.requests.filter((request) => request.path === "/v1/admin/privacy-requests" && request.method === "GET").length, before);
+});
+
+test("CH-05 regression: legal answer uncertainty survives a newer in-review read and another admin", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  const panel = page.locator(".admin-legal-queue");
+  state.legal = [legalEntry({ status: "in_review", revision: 4 })];
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByLabel("Odpowiedź dla klienta")).toBeEnabled();
+  const response = "Potwierdzamy przyjęcie zgłoszenia i jego dalszą analizę.";
+  await panel.getByLabel("Odpowiedź dla klienta").fill(response);
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/legal-requests/")) return false;
+    state.legal = [legalEntry({ status: "in_review", revision: 5 })];
+    await route.fulfill({ status: 503, json: { error: { code: "legal_request_delivery_unavailable" } } });
+    return true;
+  };
+  await panel.getByRole("button", { name: "Wyślij odpowiedź" }).click();
+  await expect.poll(() => state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/legal-requests/")).length).toBe(1);
+  await expect(panel.getByRole("button", { name: "Odśwież sprawy" })).toBeEnabled();
+  state.handler = null;
+  await page.evaluate(() => adminTestAuth.emit("second-admin@example.test"));
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByLabel("Odpowiedź dla klienta")).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "Wyślij odpowiedź" })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/legal-requests/")).length, 1);
+});
+
+test("CH-05 legal answer digest pause is fenced across rapid clicks and account A-B-A", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login(); await ready();
+  const panel = page.locator(".admin-legal-queue");
+  state.legal = [legalEntry({ status: "in_review", revision: 4 })];
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByLabel("Odpowiedź dla klienta")).toBeEnabled();
+  await panel.getByLabel("Odpowiedź dla klienta").fill("Odpowiedź kontrolowana podczas digestu.");
+  await page.evaluate(() => {
+    const subtle = crypto.subtle;
+    const digest = subtle.digest.bind(subtle);
+    window.ch05DigestStarted = false; window.ch05DigestCalls = 0;
+    Object.defineProperty(subtle, "digest", { configurable: true, value: (algorithm, data) => {
+      window.ch05DigestStarted = true;
+      window.ch05DigestCalls += 1;
+      return new Promise((resolve) => { window.ch05DigestRelease = () => digest(algorithm, data).then(resolve); });
+    } });
+  });
+  const patchCount = () => state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/legal-requests/")).length;
+  await panel.getByRole("button", { name: "Wyślij odpowiedź" }).evaluate((button) => {
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.ch05DigestStarted)).toBe(true);
+  assert.equal(await page.evaluate(() => window.ch05DigestCalls), 1);
+  assert.equal(patchCount(), 0);
+  await page.evaluate(() => adminTestAuth.emit("second-admin@example.test"));
+  await expect.poll(() => state.requests.filter((request) => request.method === "GET" && request.path === "/v1/admin/legal-requests").length).toBeGreaterThan(2);
+  await page.evaluate(() => adminTestAuth.emit("admin@example.test"));
+  await expect.poll(() => state.requests.filter((request) => request.method === "GET" && request.path === "/v1/admin/legal-requests").length).toBeGreaterThan(3);
+  await page.evaluate(() => window.ch05DigestRelease());
+  await expect(panel.getByRole("button", { name: "Odśwież sprawy" })).toBeEnabled();
+  await page.waitForTimeout(50);
+  assert.equal(patchCount(), 0);
+});
+
+test("CH-05 legal answer readback clears only for the exact normalized response", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login(); await ready();
+  const panel = page.locator(".admin-legal-queue");
+  const requestId = "lr_11111111-1111-4111-8111-111111111111";
+  const response = "Potwierdzamy przyjęcie zgłoszenia i jego dalszą analizę.";
+  state.legal = [legalEntry({ status: "in_review", revision: 4 })];
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByLabel("Odpowiedź dla klienta")).toBeEnabled();
+  await panel.getByLabel("Odpowiedź dla klienta").fill(`  ${response}  `);
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.endsWith(`/${requestId}`)) return false;
+    state.legal = [legalEntry({ status: "answered", revision: 6, response: "Inna odpowiedź.", answeredAt: "2026-09-04T08:00:00Z" })];
+    await route.abort("failed"); return true;
+  };
+  await panel.getByRole("button", { name: "Wyślij odpowiedź" }).click();
+  await expect(panel.getByRole("button", { name: "Odśwież sprawy" })).toBeEnabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByRole("button", { name: "Zamknij sprawę" })).toBeDisabled();
+  state.legal = [legalEntry({ status: "answered", revision: 6, response, answeredAt: "2026-09-04T08:00:00Z" })];
+  await panel.getByRole("button", { name: "Odśwież sprawy" }).click();
+  await panel.getByRole("button", { name: "Otwórz sprawę" }).click();
+  await expect(panel.getByRole("button", { name: "Zamknij sprawę" })).toBeEnabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.endsWith(`/${requestId}`)).length, 1);
+});
+
+test("CH-05 regression: privacy delivery remains uncertain after a revision-only refresh", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  const panel = page.locator(".admin-privacy-queue");
+  const request = privacyEntry("response_ready", 7);
+  request.channel = "public";
+  request.outcome = "fulfilled";
+  state.privacy = [request];
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
+    state.privacy = [{ ...request, revision: 8, status: "response_ready", deliveredAt: null }];
+    await route.abort("failed");
+    return true;
+  };
+  await panel.getByRole("button", { name: "Udostępnij odpowiedź" }).click();
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await expect(panel.getByRole("button", { name: "Udostępnij odpowiedź" })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/privacy-requests/")).length, 1);
+});
+
+test("CH-05 regression: an unconfirmed extension notice marked failed cannot be retried", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  const panel = page.locator(".admin-privacy-queue");
+  const request = privacyEntry("in_review", 2);
+  request.channel = "public";
+  state.privacy = [request];
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.getByLabel("Przedłuż termin — uzasadnienie").fill("Potrzebny jest dodatkowy czas na analizę.");
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.startsWith("/v1/admin/privacy-requests/")) return false;
+    state.privacy = [{ ...request, revision: 3, extendedAt: "2026-10-04T08:00:00Z", extensionNoticeStatus: "failed" }];
+    await route.abort("failed");
+    return true;
+  };
+  await panel.getByRole("button", { name: "Przedłuż termin", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Odśwież wnioski" })).toBeEnabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież wnioski" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await expect(panel.getByRole("button", { name: "Ponów powiadomienie o przedłużeniu" })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/privacy-requests/")).length, 1);
+});
+
+test("CH-05 regression: a pending security notification disables the matching recipient resend", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  const panel = page.locator(".admin-security-queue");
+  const incident = incidentDetails({
+    ...incidentEntry({ subjectDecision: "required", subjectNotificationStatus: "pending", revision: 9, nextAction: "send_subject_notification" }),
+    preparedRecipients: [{ recipientPseudonym: "recipient-0000000000000000", snapshotVersion: 1 }],
+    subjectNotifications: [{ recipientPseudonym: "recipient-0000000000000000", snapshotVersion: 1, status: "pending", deliveryId: "22222222-2222-4222-8222-222222222222" }],
+  });
+  state.incidents = [incidentEntry({ ...incident, nextAction: "send_subject_notification" })];
+  state.incidentDetails[incident.incidentId] = incident;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  await expect(panel.getByRole("button", { name: /Adresat 1: W trakcie wysyłki/u })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.startsWith("/v1/admin/security-incidents/")).length, 0);
+});
+
+test("CH-05 pending notification remains blocked until manual reconciliation and resolution", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login(); await ready();
+  const panel = page.locator(".admin-security-queue");
+  const recipientPseudonym = "recipient-0000000000000000";
+  const deliveryId = "22222222-2222-4222-8222-222222222222";
+  const incident = incidentDetails({
+    ...incidentEntry({ subjectDecision: "required", subjectNotificationStatus: "prepared", revision: 1, nextAction: "send_subject_notification" }),
+    preparedRecipients: [{ recipientPseudonym, snapshotVersion: 1 }], subjectNotifications: [],
+  });
+  state.incidents = [incidentEntry({ ...incident, nextAction: "send_subject_notification" })];
+  state.incidentDetails[incident.incidentId] = incident;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.endsWith(`/${incident.incidentId}`)) return false;
+    const body = route.request().postDataJSON();
+    if (body.action === "send_subject_notification") {
+      state.incidentDetails[incident.incidentId] = { ...incident, revision: 2, subjectNotificationStatus: "pending", subjectNotifications: [{ recipientPseudonym, snapshotVersion: 1, status: "pending", deliveryId }] };
+      await route.abort("failed"); return true;
+    }
+    if (body.action === "reconcile_subject_notifications") {
+      const current = state.incidentDetails[incident.incidentId];
+      const updated = { ...current, revision: 3, subjectNotificationStatus: "unknown", subjectNotifications: current.subjectNotifications.map((entry) => ({ ...entry, status: "unknown" })) };
+      state.incidentDetails[incident.incidentId] = updated;
+      await route.fulfill({ json: { incident: updated } }); return true;
+    }
+    if (body.action === "resolve_subject_notification_unknown") {
+      const current = state.incidentDetails[incident.incidentId];
+      const updated = { ...current, revision: 4, subjectNotificationStatus: body.outcome, subjectNotifications: current.subjectNotifications.map((entry) => ({ ...entry, status: body.outcome })) };
+      state.incidentDetails[incident.incidentId] = updated;
+      await route.fulfill({ json: { incident: updated } }); return true;
+    }
+    return false;
+  };
+  await panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" }).click();
+  await expect.poll(() => state.requests.filter((request) => request.method === "PATCH" && request.path.endsWith(`/${incident.incidentId}`)).length).toBe(1);
+  await expect(panel.getByRole("button", { name: "Odśwież incydenty" })).toBeEnabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  await expect(panel.getByRole("button", { name: "Sprawdź statusy doręczeń" })).toBeEnabled();
+  await expect(panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" })).not.toBeVisible();
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.endsWith(`/${incident.incidentId}`)) return false;
+    const body = route.request().postDataJSON();
+    if (body.action === "reconcile_subject_notifications") {
+      const current = state.incidentDetails[incident.incidentId];
+      const updated = { ...current, revision: 3, subjectNotificationStatus: "unknown", subjectNotifications: current.subjectNotifications.map((entry) => ({ ...entry, status: "unknown" })) };
+      state.incidentDetails[incident.incidentId] = updated;
+      await route.fulfill({ json: { incident: updated } }); return true;
+    }
+    return false;
+  };
+  await panel.getByRole("button", { name: "Sprawdź statusy doręczeń" }).click();
+  await expect.poll(() => state.incidentDetails[incident.incidentId]?.subjectNotificationStatus).toBe("unknown");
+  const notificationDisclosure = panel.locator(".security-incident-detail details").filter({ hasText: "Zawiadomienie osób" });
+  await expect(notificationDisclosure).toContainText("Wynik nieznany — wymaga sprawdzenia");
+  if (!(await notificationDisclosure.evaluate((details) => details.open))) await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  const recoveryForm = panel.locator("form").filter({ hasText: "Wyjaśnij nieznany wynik doręczenia" });
+  await expect(recoveryForm.getByRole("button", { name: "Zapisz wynik" })).toBeVisible();
+  await recoveryForm.getByLabel("Uzasadnienie").fill("Sprawdzono listę wysyłek ręcznie.");
+  state.handler = async (route) => {
+    if (route.request().method() !== "PATCH" || !new URL(route.request().url()).pathname.endsWith(`/${incident.incidentId}`)) return false;
+    const body = route.request().postDataJSON();
+    if (body.action !== "resolve_subject_notification_unknown") return false;
+    assert.equal(body.deliveryId, deliveryId);
+    const current = state.incidentDetails[incident.incidentId];
+    const updated = { ...current, revision: 4, subjectNotificationStatus: body.outcome, subjectNotifications: current.subjectNotifications.map((entry) => ({ ...entry, status: body.outcome })) };
+    state.incidentDetails[incident.incidentId] = updated;
+    await route.fulfill({ json: { incident: updated } }); return true;
+  };
+  await recoveryForm.getByRole("button", { name: "Zapisz wynik" }).click();
+  await expect(panel.getByRole("button", { name: "Zapisz klasyfikację" })).toBeEnabled();
+  assert.deepEqual(state.requests.filter((request) => request.method === "PATCH" && request.path.endsWith(`/${incident.incidentId}`)).map((request) => request.body.action), ["send_subject_notification", "reconcile_subject_notifications", "resolve_subject_notification_unknown"]);
+});
+
+test("CH-05 export detail close aborts a late body before Blob or download", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login(); await ready();
+  const panel = page.locator(".admin-security-queue");
+  const incident = incidentDetails({ ...incidentEntry({ authorityDecision: "required", revision: 2 }), authorityExportVersion: 1 });
+  state.incidents = [incidentEntry(incident)]; state.incidentDetails[incident.incidentId] = incident;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Eksport i ręczny dowód dla UODO" }).click();
+  await page.evaluate(() => {
+    const original = window.fetch;
+    const createObjectURL = URL.createObjectURL.bind(URL);
+    window.ch05DownloadEffects = { blobs: 0, clicks: 0 };
+    URL.createObjectURL = (...args) => { window.ch05DownloadEffects.blobs += 1; return createObjectURL(...args); };
+    document.addEventListener("click", (event) => { if (event.target?.closest?.("a[download]")) window.ch05DownloadEffects.clicks += 1; }, true);
+    window.ch05ExportAborted = false;
+    window.fetch = (input, options) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (!url.includes("/authority-exports/")) return original(input, options);
+      window.ch05ExportSignal = options.signal;
+      options.signal.addEventListener("abort", () => { window.ch05ExportAborted = true; }, { once: true });
+      return Promise.resolve({ ok: true, status: 200, json: () => new Promise((resolve) => {
+        window.ch05ExportReleaseBody = () => resolve({ payload: "{\"exact\":true}", digest: "d".repeat(43), version: 1 });
+      }) });
+    };
+  });
+  await panel.getByRole("button", { name: "Pobierz eksport UODO (wersja 1)" }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.ch05ExportSignal))).toBe(true);
+  await panel.getByRole("button", { name: "Zamknij szczegóły" }).click();
+  await expect.poll(() => page.evaluate(() => window.ch05ExportAborted)).toBe(true);
+  assert.equal(await page.evaluate(() => window.ch05ExportSignal.aborted), true);
+  await page.evaluate(() => window.ch05ExportReleaseBody());
+  await page.waitForTimeout(50);
+  assert.deepEqual(await page.evaluate(() => window.ch05DownloadEffects), { blobs: 0, clicks: 0 });
+});
+
+test("CH-05 regression: uncertain incident creation stays domain-latched across admins without hiding reads", async (t) => {
+  const { page, state, login, ready } = await screen(t);
+  await login();
+  await ready();
+  const panel = page.locator(".admin-security-queue");
+  await panel.getByText("Dodaj incydent", { exact: true }).click();
+  await panel.getByLabel("Tytuł roboczy").fill("Kontrolowany incydent CH-05");
+  const fields = {
+    "Opis i ocena": "Kontrolowany opis incydentu.",
+    "Wykryto (data i czas)": "2026-09-07T10:00",
+    "Kategorie danych": "Dane konta",
+    "Szacowana liczba osób": "1",
+    "Szacowana liczba rekordów": "1",
+    "Wpływ na poufność": "Niski",
+    "Wpływ na integralność": "Brak",
+    "Wpływ na dostępność": "Brak",
+    "Możliwe konsekwencje": "Weryfikacja.",
+    "Prawdopodobieństwo": "Niskie",
+    "Dotkliwość": "Niska",
+    "Działania ograniczające": "Dostęp ograniczony.",
+    "Działania naprawcze": "Dane zweryfikowane.",
+    "Działania zapobiegawcze": "Monitoring.",
+    "Podsumowanie po incydencie": "Przegląd.",
+  };
+  for (const [label, value] of Object.entries(fields)) await panel.getByLabel(label, { exact: true }).fill(value);
+  state.handler = async (route) => {
+    if (route.request().method() !== "POST" || new URL(route.request().url()).pathname !== "/v1/admin/security-incidents") return false;
+    state.incidents = [incidentEntry(), ...state.incidents];
+    await route.abort("failed");
+    return true;
+  };
+  await panel.getByRole("button", { name: "Utwórz incydent" }).click();
+  await expect.poll(() => state.requests.filter((request) => request.method === "POST" && request.path === "/v1/admin/security-incidents").length).toBe(1);
+  await expect(panel.getByRole("button", { name: "Odśwież incydenty" })).toBeEnabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await expect(panel.getByRole("button", { name: "Otwórz szczegóły" })).toBeVisible();
+  await page.evaluate(() => adminTestAuth.emit("second-admin@example.test"));
+  await expect(panel.getByRole("button", { name: "Odśwież incydenty" })).toBeEnabled();
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  const createDetails = panel.locator("details.security-incident-create");
+  if (!(await createDetails.evaluate((details) => details.open))) await panel.getByText("Dodaj incydent", { exact: true }).click();
+  await panel.getByLabel("Tytuł roboczy").fill("Kontrolowany incydent CH-05");
+  await panel.getByLabel("Opis i ocena").fill("Kontrolowany opis incydentu.");
+  await expect(panel.getByRole("button", { name: "Utwórz incydent" })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "POST" && request.path === "/v1/admin/security-incidents").length, 1);
+  assert.ok(state.requests.filter((request) => request.method === "GET" && request.path === "/v1/admin/security-incidents").length >= 3);
+  const unrelated = incidentDetails({ ...incidentEntry({ incidentId: "si_33333333-3333-4333-8333-333333333333" }), title: "Niezależny incydent" });
+  state.incidents = [incidentEntry(unrelated)];
+  state.incidentDetails[unrelated.incidentId] = unrelated;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.getByRole("button", { name: "Potwierdź świadomość 72 godzin" }).click();
+  await expect(panel.getByRole("button", { name: "Świadomość potwierdzona" })).toBeDisabled();
+  assert.equal(state.requests.filter((request) => request.method === "PATCH" && request.path.endsWith(`/${unrelated.incidentId}`)).length, 1);
+});
+
+export { screen, legalEntry, privacyEntry, incidentEntry, incidentDetails, expect };

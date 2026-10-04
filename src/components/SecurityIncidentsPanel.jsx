@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { adminApiOrigin } from "../adminConfig";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AdminRequestError, clearAdminOperation, markAdminOperationPending, pendingAdminOperations, requestAdminJson, useAdminRequestLifecycle } from "../adminRequestLifecycle";
 
 const CLASSIFICATION = {
   triage: "Do oceny",
@@ -223,7 +223,7 @@ function errorFor(response, payload, writing = false) {
         : response.status === 409
           ? "Stan incydentu zmienił się na serwerze. Odśwież listę przed kolejną zmianą."
           : response.status === 503
-            ? "Nie można wysłać zawiadomienia. Sprawdź konfigurację SMTP i odśwież listę."
+            ? writing ? "Wynik zapisu jest niepewny. Nie ponawiaj działania; odśwież szczegóły przed kolejną zmianą." : "Usługa jest chwilowo niedostępna. Spróbuj ponownie."
             : writing
               ? "Wynik zapisu jest niepewny. Odśwież listę przed kolejną zmianą."
               : "Nie udało się pobrać incydentów. Spróbuj ponownie.",
@@ -233,19 +233,86 @@ function errorFor(response, payload, writing = false) {
   return error;
 }
 
-async function request(user, path, options = {}) {
-  const token = await user.getIdToken(options.forceRefresh === true);
-  const { forceRefresh: _forceRefresh, ...fetchOptions } = options;
-  const response = await fetch(`${adminApiOrigin.replace(/\/$/u, "")}${path}`, {
-    ...fetchOptions,
-    headers: {
-      authorization: `Bearer ${token}`,
-      ...(options.body ? { "content-type": "application/json" } : {}),
-    },
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) throw errorFor(response, payload, options.method === "PATCH" || options.method === "POST");
-  return payload;
+function adminRequestMessage(error, writing = false) {
+  if (!(error instanceof AdminRequestError)) return error?.message || "Nie udało się wykonać żądania. Spróbuj ponownie.";
+  if (error.kind === "timeout") return writing && error.dispatched
+    ? "Wynik zapisu jest niepewny. Nie ponawiaj działania; odśwież szczegóły przed kolejną zmianą."
+    : "Przekroczono czas żądania. Spróbuj ponownie.";
+  if (error.kind === "fetch") return writing && error.dispatched
+    ? "Wynik zapisu jest niepewny. Nie ponawiaj działania; odśwież szczegóły przed kolejną zmianą."
+    : "Nie udało się połączyć z usługą. Spróbuj ponownie.";
+  if (error.kind === "token") return "Nie udało się potwierdzić konta administratora. Sprawdź konto i spróbuj ponownie.";
+  if (error.status !== undefined) return errorFor({ status: error.status }, error.payload, writing).message;
+  return "Nie udało się wykonać żądania. Spróbuj ponownie.";
+}
+
+const securityResource = (incidentId) => `security:${incidentId}`;
+const securityCreateResource = "*";
+function operationEvent(action) {
+  return ({
+    acknowledge_awareness: "acknowledge_awareness", classify: "classify", correct_assessment: "correct_assessment",
+    decide_authority: "decide_authority", prepare_authority_export: "prepare_authority_export",
+    record_authority_submission: "record_authority_submission", decide_subject: "decide_subject",
+    prepare_subject_notification: "prepare_subject_notification", send_subject_notification: "subject_notification_pending",
+    resolve_subject_notification_unknown: "resolve_subject_notification_unknown", reconcile_subject_notifications: "reconcile_subject_notifications",
+    set_legal_hold: "set_legal_hold", release_legal_hold: "release_legal_hold", close: "close",
+  })[action];
+}
+function securityOperationResolved(incident, operation) {
+  if (operation.action === "create") return false;
+  if (operation.action === "send_subject_notification") {
+    const match = incident.subjectNotifications.find((entry) => entry.recipientPseudonym === operation.recipientPseudonym
+      && entry.snapshotVersion === operation.snapshotVersion);
+    return Boolean(match && ["sent", "failed", "superseded"].includes(match.status));
+  }
+  if (!operation.directResponse) {
+    if (["correct_assessment", "prepare_authority_export", "record_authority_submission", "prepare_subject_notification"].includes(operation.action)) return false;
+    const event = operationEvent(operation.action);
+    const audit = incident.auditHistory.find((entry) => entry.revision === operation.beforeRevision + 1 && entry.event === event);
+    if (!audit) return false;
+    const snapshot = audit.snapshot || {};
+    if (operation.intent?.classification && snapshot.classification !== operation.intent.classification) return false;
+    if (operation.intent?.authorityDecision && snapshot.authorityDecision !== operation.intent.authorityDecision) return false;
+    if (operation.intent?.subjectDecision && snapshot.subjectDecision !== operation.intent.subjectDecision) return false;
+  }
+  if (incident.revision < operation.beforeRevision + 1) return false;
+  switch (operation.action) {
+    case "acknowledge_awareness": return Boolean(incident.awarenessAt);
+    case "classify": return incident.classification === operation.intent.classification;
+    case "correct_assessment": return incident.assessmentVersion > operation.beforeAssessmentVersion;
+    case "decide_authority": return incident.authorityDecision === operation.intent.authorityDecision;
+    case "prepare_authority_export": return incident.authorityExportVersion > operation.beforeExportVersion;
+    case "record_authority_submission": return incident.authorityDeliveryStatus === operation.intent.authorityDeliveryStatus;
+    case "decide_subject": return incident.subjectDecision === operation.intent.subjectDecision;
+    case "prepare_subject_notification": return incident.subjectNotificationStatus === "prepared" && incident.preparedRecipients.some((entry) => entry.snapshotVersion > operation.beforeSnapshotVersion);
+    case "reconcile_subject_notifications": return incident.subjectNotificationStatus === "unknown";
+    case "resolve_subject_notification_unknown": return incident.subjectNotifications.some((entry) => entry.deliveryId === operation.intent.deliveryId && entry.status === operation.intent.outcome);
+    case "set_legal_hold": return incident.legalHold === true;
+    case "release_legal_hold": return incident.legalHold === false;
+    case "close": return Boolean(incident.closedAt);
+    default: return false;
+  }
+}
+function reconcileSecurity(incident) {
+  for (const operation of pendingAdminOperations("security-incidents", securityResource(incident.incidentId))) {
+    if (securityOperationResolved(incident, operation)) clearAdminOperation(operation);
+  }
+}
+const SECURITY_RECOVERY_ACTIONS = ["reconcile_subject_notifications", "resolve_subject_notification_unknown"];
+function securityMutationBlocked(incidentId, action) {
+  const operations = pendingAdminOperations("security-incidents", securityResource(incidentId)).filter((operation) => operation.resource !== "*");
+  if (SECURITY_RECOVERY_ACTIONS.includes(action)) return operations.some((operation) => operation.action !== "send_subject_notification");
+  return operations.length > 0;
+}
+function securityResourceBlocked(incidentId) {
+  return pendingAdminOperations("security-incidents", securityResource(incidentId)).some((operation) => operation.resource !== "*");
+}
+function securityRecoveryBlocked(incidentId) {
+  return pendingAdminOperations("security-incidents", securityResource(incidentId))
+    .some((operation) => operation.resource !== "*" && operation.action !== "send_subject_notification");
+}
+function securityCreateBlocked() {
+  return pendingAdminOperations("security-incidents", securityCreateResource).some((operation) => operation.resource === "*" && operation.effect === "create");
 }
 
 function TimeValue({ value }) {
@@ -403,7 +470,7 @@ function DecisionForm({ label, value, setValue, reason, setReason, legalExceptio
   </ActionForm>;
 }
 
-function SubjectNotificationForms({ selected, busy, disabled, act }) {
+function SubjectNotificationForms({ selected, busy, disabled, mutationLocked, recoveryLocked, act }) {
   const [recipients, setRecipients] = useState("");
   const [subject, setSubject] = useState("");
   const [text, setText] = useState("");
@@ -423,13 +490,15 @@ function SubjectNotificationForms({ selected, busy, disabled, act }) {
       <p>Adresy są przechowywane po stronie serwera i nie są ponownie wyświetlane. Wyślij tylko po sprawdzeniu zamrożonej treści.</p>
       <div className="admin-action-row">{prepared.map((recipient, index) => {
         const notification = selected.subjectNotifications.find((entry) => entry.recipientPseudonym === recipient.recipientPseudonym && entry.snapshotVersion === recipient.snapshotVersion);
-        const done = notification && ["sent", "failed", "unknown", "superseded"].includes(notification.status);
-        return <button className="button button-secondary" key={`${recipient.recipientPseudonym}-${recipient.snapshotVersion}`} disabled={busy || disabled || done} onClick={() => act({ action: "send_subject_notification", recipientPseudonym: recipient.recipientPseudonym, snapshotVersion: recipient.snapshotVersion })} type="button">{done ? `Adresat ${index + 1}: ${SUBJECT_NOTIFICATION[notification.status]}` : `Wyślij zawiadomienie — adresat ${index + 1}`}</button>;
+        const done = notification && ["pending", "sent", "failed", "unknown", "superseded"].includes(notification.status);
+        const pending = pendingAdminOperations("security-incidents", securityResource(selected.incidentId))
+          .some((operation) => operation.effect === `subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}`);
+        return <button className="button button-secondary" key={`${recipient.recipientPseudonym}-${recipient.snapshotVersion}`} disabled={busy || disabled || mutationLocked || pending || done} onClick={() => act({ action: "send_subject_notification", recipientPseudonym: recipient.recipientPseudonym, snapshotVersion: recipient.snapshotVersion })} type="button">{done ? `Adresat ${index + 1}: ${SUBJECT_NOTIFICATION[notification.status]}` : `Wyślij zawiadomienie — adresat ${index + 1}`}</button>;
       })}</div>
     </section>}
     {unknowns.map((notification, index) => {
       const value = resolution[notification.deliveryId] || { outcome: "sent", reason: "" };
-      return <ActionForm key={notification.deliveryId} label={`Wyjaśnij nieznany wynik doręczenia ${index + 1}`} buttonLabel="Zapisz wynik" busy={busy} disabled={disabled} onSubmit={() => act({ action: "resolve_subject_notification_unknown", deliveryId: notification.deliveryId, outcome: value.outcome, reason: value.reason })}>
+      return <ActionForm key={notification.deliveryId} label={`Wyjaśnij nieznany wynik doręczenia ${index + 1}`} buttonLabel="Zapisz wynik" busy={busy} disabled={disabled || recoveryLocked} onSubmit={() => act({ action: "resolve_subject_notification_unknown", deliveryId: notification.deliveryId, outcome: value.outcome, reason: value.reason })}>
         <p>System nie potwierdził wyniku wysyłki. Wymagana jest ręczna weryfikacja.</p>
         <label>Potwierdzony wynik<select value={value.outcome} onChange={(event) => setResolution((current) => ({ ...current, [notification.deliveryId]: { ...value, outcome: event.target.value } }))}><option value="sent">Doręczono</option><option value="failed">Nie doręczono</option></select></label>
         <label>Uzasadnienie<textarea maxLength={4_000} value={value.reason} onChange={(event) => setResolution((current) => ({ ...current, [notification.deliveryId]: { ...value, reason: event.target.value } }))} required /></label>
@@ -494,7 +563,7 @@ function isAuthorityExport(value, version) {
   );
 }
 
-function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
+function IncidentDetails({ selected, busy, disabled, mutationLocked, recoveryLocked, act, onClose, user, lifecycle, userId }) {
   const [classification, setClassification] = useState(selected.classification);
   const [classificationReason, setClassificationReason] = useState("");
   const [authorityDecision, setAuthorityDecision] = useState(selected.authorityDecision === "undecided" ? "required" : selected.authorityDecision);
@@ -511,6 +580,14 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const detailRef = useRef(null);
+  const exportController = useRef(null);
+
+  useLayoutEffect(() => {
+    exportController.current?.abort("detail_scope_changed");
+    exportController.current = null;
+    setExportBusy(false);
+  }, [selected.incidentId, selected.revision, selected.authorityExportVersion, userId]);
+  useLayoutEffect(() => () => { exportController.current?.abort("detail_closed"); }, []);
 
   useEffect(() => {
     detailRef.current?.focus();
@@ -521,8 +598,13 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
     if (exportBusy || !Number.isSafeInteger(version) || version < 1) return;
     setExportBusy(true);
     setExportStatus("Pobieranie eksportu…");
+    const lease = lifecycle.capture();
+    const controller = new AbortController();
+    exportController.current?.abort("superseded");
+    exportController.current = controller;
     try {
-      const exported = await request(user, `/v1/admin/security-incidents/${encodeURIComponent(selected.incidentId)}/authority-exports/${version}`);
+      const exported = await requestAdminJson(user, `/v1/admin/security-incidents/${encodeURIComponent(selected.incidentId)}/authority-exports/${version}`, {}, { signal: controller.signal, isCurrent: () => lifecycle.isCurrent(lease) });
+      if (controller.signal.aborted || exportController.current !== controller || !lifecycle.isCurrent(lease)) return;
       if (!isAuthorityExport(exported, version)) throw new Error("Serwer nie potwierdził dokładnej wersji eksportu.");
       const blob = new Blob([exported.payload], { type: "application/json;charset=utf-8" });
       const objectUrl = URL.createObjectURL(blob);
@@ -537,9 +619,9 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
       }
       setExportStatus(`Pobrano dokładny eksport UODO, wersja ${version}.`);
     } catch (error) {
-      setExportStatus(error.message || "Nie udało się pobrać eksportu.");
+      if (!controller.signal.aborted && exportController.current === controller && lifecycle.isCurrent(lease)) setExportStatus(adminRequestMessage(error));
     } finally {
-      setExportBusy(false);
+      if (!controller.signal.aborted && exportController.current === controller && lifecycle.isCurrent(lease)) setExportBusy(false);
     }
   }
 
@@ -557,7 +639,7 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
     </section>
     <details className="admin-incident-disclosure"><summary>Opis i ocena — wersja {selected.assessmentVersion}</summary>
       <AssessmentSummary selected={selected} />
-      <ActionForm label="Korekta oceny" buttonLabel="Zapisz nową wersję oceny" busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "correct_assessment", reason: assessmentReason, ...serializeAssessment(assessment) })}>
+      <ActionForm label="Korekta oceny" buttonLabel="Zapisz nową wersję oceny" busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "correct_assessment", reason: assessmentReason, ...serializeAssessment(assessment) })}>
         <AssessmentFields value={assessment} setValue={setAssessment} idPrefix="incident-assessment" />
         <label>Uzasadnienie korekty<textarea maxLength={4_000} value={assessmentReason} onChange={(event) => setAssessmentReason(event.target.value)} required /></label>
       </ActionForm>
@@ -565,22 +647,22 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
     <section className="admin-incident-operation" aria-labelledby="incident-decisions-title">
       <h4 id="incident-decisions-title">Decyzje</h4>
       <p>Każda decyzja prawna wymaga jawnego uzasadnienia operatora.</p>
-      <ActionForm label="Klasyfikacja" buttonLabel="Zapisz klasyfikację" busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "classify", classification, reason: classificationReason })}>
+      <ActionForm label="Klasyfikacja" buttonLabel="Zapisz klasyfikację" busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "classify", classification, reason: classificationReason })}>
         <label>Klasyfikacja<select value={classification} onChange={(event) => setClassification(event.target.value)}><option value="triage">Do oceny</option><option value="breach_confirmed">Naruszenie potwierdzone</option><option value="not_a_breach">Brak naruszenia</option></select></label>
         <label>Uzasadnienie<textarea maxLength={4_000} value={classificationReason} onChange={(event) => setClassificationReason(event.target.value)} required /></label>
       </ActionForm>
       <div className="admin-incident-status-grid"><p>Decyzja UODO: <strong>{DECISION[selected.authorityDecision]}</strong>{selected.authorityReason && <><br />Uzasadnienie: {selected.authorityReason}</>}</p><p>Decyzja wobec osób: <strong>{DECISION[selected.subjectDecision]}</strong>{selected.subjectReason && <><br />Uzasadnienie: {selected.subjectReason}</>}</p></div>
-      <DecisionForm label="Decyzja dotycząca UODO" value={authorityDecision} setValue={setAuthorityDecision} reason={authorityReason} setReason={setAuthorityReason} legalException={authorityException} setLegalException={setAuthorityException} busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "decide_authority", decision: authorityDecision, reason: authorityReason, ...(authorityException.trim() ? { legalException: authorityException } : {}) })} />
-      <DecisionForm label="Decyzja dotycząca osób" value={subjectDecision} setValue={setSubjectDecision} reason={subjectDecisionReason} setReason={setSubjectDecisionReason} legalException={subjectException} setLegalException={setSubjectException} busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "decide_subject", decision: subjectDecision, reason: subjectDecisionReason, ...(subjectException.trim() ? { legalException: subjectException } : {}) })} />
+      <DecisionForm label="Decyzja dotycząca UODO" value={authorityDecision} setValue={setAuthorityDecision} reason={authorityReason} setReason={setAuthorityReason} legalException={authorityException} setLegalException={setAuthorityException} busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "decide_authority", decision: authorityDecision, reason: authorityReason, ...(authorityException.trim() ? { legalException: authorityException } : {}) })} />
+      <DecisionForm label="Decyzja dotycząca osób" value={subjectDecision} setValue={setSubjectDecision} reason={subjectDecisionReason} setReason={setSubjectDecisionReason} legalException={subjectException} setLegalException={setSubjectException} busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "decide_subject", decision: subjectDecision, reason: subjectDecisionReason, ...(subjectException.trim() ? { legalException: subjectException } : {}) })} />
     </section>
     <details className="admin-incident-disclosure"><summary>Eksport i ręczny dowód dla UODO</summary>
       <p className="admin-note">System nie wysyła zgłoszeń do UODO. Zapisuje wyłącznie ręczny dowód.</p>
       <p>Stan ręcznego zgłoszenia: <strong>{AUTHORITY_DELIVERY[selected.authorityDeliveryStatus]}</strong></p>
       {selected.authorityDecision === "required" ? <>
-        <ActionForm label="Przygotuj eksport" buttonLabel="Przygotuj eksport UODO" busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "prepare_authority_export", payload: authorityPayload })}>
+        <ActionForm label="Przygotuj eksport" buttonLabel="Przygotuj eksport UODO" busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "prepare_authority_export", payload: authorityPayload })}>
           <label>Treść eksportu do skopiowania do kanału UODO<textarea maxLength={100_000} value={authorityPayload} onChange={(event) => setAuthorityPayload(event.target.value)} required /></label>
         </ActionForm>
-        <ActionForm label="Zapisz ręczny dowód zgłoszenia" buttonLabel={submission.supplementary ? "Zapisz uzupełnienie" : "Zapisz zgłoszenie"} busy={busy} disabled={disabled || Boolean(selected.closedAt)} onSubmit={() => act({ action: "record_authority_submission", ...submission })}>
+        <ActionForm label="Zapisz ręczny dowód zgłoszenia" buttonLabel={submission.supplementary ? "Zapisz uzupełnienie" : "Zapisz zgłoszenie"} busy={busy} disabled={disabled || mutationLocked || Boolean(selected.closedAt)} onSubmit={() => act({ action: "record_authority_submission", ...submission })}>
           <label>Kanał zgłoszenia<input maxLength={128} value={submission.channel} onChange={(event) => setSubmission((current) => ({ ...current, channel: event.target.value }))} required /></label>
           <label>Referencja zgłoszenia<input maxLength={512} value={submission.reference} onChange={(event) => setSubmission((current) => ({ ...current, reference: event.target.value }))} required /></label>
           <label>Dowód zgłoszenia<textarea maxLength={20_000} value={submission.evidence} onChange={(event) => setSubmission((current) => ({ ...current, evidence: event.target.value }))} required /></label>
@@ -590,26 +672,26 @@ function IncidentDetails({ selected, busy, disabled, act, onClose, user }) {
         {selected.authoritySubmissionReference && <p>Referencja ostatniego zapisu: {selected.authoritySubmissionReference}</p>}
         {selected.authorityExportVersion && <div className="admin-incident-export-download">
           <p>Udostępniono przygotowany, wersjonowany artefakt. Pobranie wymaga zalogowania administratora.</p>
-          <button className="button button-secondary" disabled={busy || disabled || exportBusy} onClick={() => void downloadExport()} type="button">{exportBusy ? "Pobieranie eksportu…" : `Pobierz eksport UODO (wersja ${selected.authorityExportVersion})`}</button>
+          <button className="button button-secondary" disabled={busy || disabled || mutationLocked || exportBusy} onClick={() => void downloadExport()} type="button">{exportBusy ? "Pobieranie eksportu…" : `Pobierz eksport UODO (wersja ${selected.authorityExportVersion})`}</button>
           {exportStatus && <p className="admin-status" role="status">{exportStatus}</p>}
         </div>}
       </> : <p>Eksport i ręczny dowód nie są wymagane przy tej decyzji.</p>}
     </details>
     <details className="admin-incident-disclosure"><summary>Zawiadomienie osób</summary>
       <p>Stan zawiadomienia: <strong>{SUBJECT_NOTIFICATION[selected.subjectNotificationStatus]}</strong></p>
-      {selected.subjectDecision === "required" ? <SubjectNotificationForms selected={selected} busy={busy} disabled={disabled || Boolean(selected.closedAt)} act={act} /> : <p>Zawiadomienie nie jest wymagane przy tej decyzji.</p>}
-      {selected.subjectNotificationStatus === "unknown" && <button className="button button-secondary" disabled={busy || disabled || Boolean(selected.closedAt)} onClick={() => act({ action: "reconcile_subject_notifications" })} type="button">Uzgodnij statusy doręczeń</button>}
+      {selected.subjectDecision === "required" ? <SubjectNotificationForms selected={selected} busy={busy} disabled={disabled || Boolean(selected.closedAt)} mutationLocked={mutationLocked} recoveryLocked={recoveryLocked} act={act} /> : <p>Zawiadomienie nie jest wymagane przy tej decyzji.</p>}
+      {["pending", "unknown"].includes(selected.subjectNotificationStatus) && <button className="button button-secondary" disabled={busy || disabled || recoveryLocked || Boolean(selected.closedAt)} onClick={() => act({ action: "reconcile_subject_notifications" })} type="button">{selected.subjectNotificationStatus === "pending" ? "Sprawdź statusy doręczeń" : "Uzgodnij statusy doręczeń"}</button>}
     </details>
     <details className="admin-incident-disclosure"><summary>Blokada retencji</summary>
       <p>Stan: <strong>{selected.legalHold ? "Blokada aktywna" : "Brak blokady"}</strong></p>
-      <ActionForm label={selected.legalHold ? "Zwolnij z blokady retencji" : "Ustaw blokadę retencji"} buttonLabel={selected.legalHold ? "Zwolnij blokadę" : "Ustaw blokadę"} busy={busy} disabled={disabled} onSubmit={() => act({ action: selected.legalHold ? "release_legal_hold" : "set_legal_hold", reason: holdReason })}>
+      <ActionForm label={selected.legalHold ? "Zwolnij z blokady retencji" : "Ustaw blokadę retencji"} buttonLabel={selected.legalHold ? "Zwolnij blokadę" : "Ustaw blokadę"} busy={busy} disabled={disabled || mutationLocked} onSubmit={() => act({ action: selected.legalHold ? "release_legal_hold" : "set_legal_hold", reason: holdReason })}>
         <label>Uzasadnienie<textarea maxLength={4_000} value={holdReason} onChange={(event) => setHoldReason(event.target.value)} required /></label>
       </ActionForm>
     </details>
     <details className="admin-incident-disclosure"><summary>Historia</summary>
       <AuditHistory entries={selected.auditHistory} />
     </details>
-    <div className="admin-action-row"><button className="button button-primary" disabled={busy || disabled || Boolean(selected.closedAt) || Boolean(selected.awarenessAt)} onClick={() => act({ action: "acknowledge_awareness" })} type="button">{selected.awarenessAt ? "Świadomość potwierdzona" : "Potwierdź świadomość 72 godzin"}</button><button className="button button-secondary" disabled={busy || disabled || Boolean(selected.closedAt)} onClick={() => act({ action: "close" })} type="button">Zamknij sprawę</button></div>
+    <div className="admin-action-row"><button className="button button-primary" disabled={busy || disabled || mutationLocked || Boolean(selected.closedAt) || Boolean(selected.awarenessAt)} onClick={() => act({ action: "acknowledge_awareness" })} type="button">{selected.awarenessAt ? "Świadomość potwierdzona" : "Potwierdź świadomość 72 godzin"}</button><button className="button button-secondary" disabled={busy || disabled || mutationLocked || Boolean(selected.closedAt)} onClick={() => act({ action: "close" })} type="button">Zamknij sprawę</button></div>
     <p className="admin-status">Rewizja zapisu: {selected.revision}. Po konflikcie rewizji wymagane jest odświeżenie listy.</p>
   </div>;
 }
@@ -625,10 +707,18 @@ export function SecurityIncidentsPanel({ user }) {
   const [createAssessment, setCreateAssessment] = useState(emptyAssessment);
   const epoch = useRef(0);
   const busyRef = useRef(false);
+  const lifecycle = useAdminRequestLifecycle(user);
+
+  useLayoutEffect(() => {
+    epoch.current += 1; busyRef.current = false;
+    setItems([]); setSelected(null); setStatus(""); setStatusKind(""); setBusy(false);
+    setConflictLocked(true); setCreateTitle(""); setCreateAssessment(emptyAssessment());
+  }, [user?.uid]);
 
   const load = useCallback(async (forceRefresh = false) => {
     if (busyRef.current) return;
     const current = ++epoch.current;
+    const lease = lifecycle.capture();
     busyRef.current = true;
     setBusy(true);
     setItems([]);
@@ -637,24 +727,24 @@ export function SecurityIncidentsPanel({ user }) {
     setStatus("Odczytywanie incydentów…");
     setStatusKind("");
     try {
-      const payload = await request(user, "/v1/admin/security-incidents", { forceRefresh });
-      if (epoch.current !== current) return;
+      const payload = await lifecycle.request("/v1/admin/security-incidents", { forceRefresh }, lease);
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
       if (!Array.isArray(payload?.incidents) || !payload.incidents.every(validListItem)) throw new Error("Nieprawidłowy read model incydentów.");
       setItems(payload.incidents);
       setConflictLocked(false);
       setStatus(payload.incidents.length ? `Incydentów: ${payload.incidents.length}` : "Brak incydentów.");
       setStatusKind("success");
     } catch (error) {
-      if (epoch.current !== current) return;
-      setStatus(error.message);
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
+      setStatus(adminRequestMessage(error));
       setStatusKind("warning");
     } finally {
-      if (epoch.current === current) {
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
         busyRef.current = false;
         setBusy(false);
       }
     }
-  }, [user]);
+  }, [user, lifecycle]);
 
   useEffect(() => {
     void load();
@@ -667,24 +757,27 @@ export function SecurityIncidentsPanel({ user }) {
   async function open(item) {
     if (busyRef.current || conflictLocked) return;
     const current = epoch.current;
+    const lease = lifecycle.capture();
     busyRef.current = true;
     setBusy(true);
     setSelected(null);
     setStatus("Pobieranie szczegółów…");
     setStatusKind("");
     try {
-      const payload = await request(user, `/v1/admin/security-incidents/${encodeURIComponent(item.incidentId)}`);
-      if (epoch.current !== current) return;
+      const payload = await lifecycle.request(`/v1/admin/security-incidents/${encodeURIComponent(item.incidentId)}`, {}, lease);
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
       if (!validDetails(payload?.incident)) throw new Error("Nieprawidłowe szczegóły incydentu.");
+      if (payload.incident.incidentId !== item.incidentId) throw new Error("Serwer zwrócił inny incydent niż wybrano.");
+      reconcileSecurity(payload.incident);
       setSelected(payload.incident);
       setStatus("");
     } catch (error) {
-      if (epoch.current === current) {
-        setStatus(error.message);
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
+        setStatus(adminRequestMessage(error));
         setStatusKind("warning");
       }
     } finally {
-      if (epoch.current === current) {
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
         busyRef.current = false;
         setBusy(false);
       }
@@ -693,31 +786,46 @@ export function SecurityIncidentsPanel({ user }) {
 
   async function create(event) {
     event.preventDefault();
-    if (busyRef.current || conflictLocked || !createTitle.trim() || !createAssessment.details.trim()) return;
+    if (busyRef.current || conflictLocked || securityCreateBlocked()
+      || !createTitle.trim() || !createAssessment.details.trim()) return;
     const current = ++epoch.current;
+    const lease = lifecycle.capture();
     busyRef.current = true;
     setBusy(true);
     setStatus("Zapisywanie incydentu…");
     setStatusKind("");
     try {
-      const payload = await request(user, "/v1/admin/security-incidents", { method: "POST", body: JSON.stringify({ title: createTitle.trim(), ...serializeAssessment(createAssessment) }) });
-      if (epoch.current !== current) return;
+      const payload = await lifecycle.request("/v1/admin/security-incidents", { method: "POST", body: JSON.stringify({ title: createTitle.trim(), ...serializeAssessment(createAssessment) }) }, lease, () => {
+        if (securityCreateBlocked()) throw new AdminRequestError("admin_operation_already_pending", { kind: "blocked", dispatched: false });
+        markAdminOperationPending({ domain: "security-incidents", resource: securityCreateResource, effect: "create", action: "create" });
+      });
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
       if (!validDetails(payload?.incident)) throw new Error("Serwer nie potwierdził utworzenia incydentu.");
       const created = toListItem(payload.incident);
       if (!validListItem(created)) throw new Error("Serwer nie zwrócił prawidłowej pozycji listy.");
+      for (const operation of pendingAdminOperations("security-incidents", securityCreateResource)) clearAdminOperation(operation);
       setItems((currentItems) => [created, ...currentItems]);
       setCreateTitle("");
       setCreateAssessment(emptyAssessment());
       setStatus("Incydent zapisano. Otwórz szczegóły, aby rozpocząć obsługę.");
       setStatusKind("success");
     } catch (error) {
-      if (epoch.current === current) {
-        if (error.status === 409 || error.status === 503 || !error.status) setConflictLocked(true);
-        setStatus(error.message);
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
+        if (error.status === 401 || error.status === 403 || (error.status === 400 && error.code === "invalid_request")) {
+          for (const operation of pendingAdminOperations("security-incidents", securityCreateResource)) clearAdminOperation(operation);
+        }
+        const knownNoEffect = error.status === 401 || error.status === 403 || (error.status === 400 && error.code === "invalid_request");
+        setStatus(error instanceof AdminRequestError && knownNoEffect
+          ? errorFor({ status: error.status }, error.payload, true).message
+          : securityCreateBlocked()
+            ? "Wynik utworzenia jest niepewny. Nie ponawiaj; sprawdź listę incydentów."
+            : error instanceof AdminRequestError && error.status !== undefined
+              ? errorFor({ status: error.status }, error.payload, true).message
+              : error.message);
         setStatusKind("warning");
       }
     } finally {
-      if (epoch.current === current) {
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
         busyRef.current = false;
         setBusy(false);
       }
@@ -726,46 +834,100 @@ export function SecurityIncidentsPanel({ user }) {
 
   async function act(body) {
     if (!selected || busyRef.current || conflictLocked || !ACTIONS.has(body.action)) return;
+    if (securityMutationBlocked(selected.incidentId, body.action)) {
+      setStatus("Wynik poprzedniej zmiany jest nadal niepewny. Odśwież szczegóły i rozstrzygnij go przed kolejną zmianą.");
+      setStatusKind("warning");
+      return;
+    }
     const current = epoch.current;
+    const lease = lifecycle.capture();
+    const selectedAtStart = selected;
+    const external = body.action === "send_subject_notification";
+    const effect = external ? `subject-notification:${body.recipientPseudonym}:${body.snapshotVersion}` : body.action;
+    const operation = { domain: "security-incidents", resource: securityResource(selected.incidentId), effect, action: body.action,
+      beforeRevision: selected.revision, beforeAssessmentVersion: selected.assessmentVersion,
+      beforeExportVersion: selected.authorityExportVersion || 0,
+      beforeSnapshotVersion: Math.max(0, ...selected.preparedRecipients.map((entry) => entry.snapshotVersion)),
+      intent: {
+        ...(body.action === "classify" ? { classification: body.classification } : {}),
+        ...(body.action === "decide_authority" ? { authorityDecision: body.decision } : {}),
+        ...(body.action === "decide_subject" ? { subjectDecision: body.decision } : {}),
+        ...(body.action === "record_authority_submission" ? { authorityDeliveryStatus: body.supplementary ? "supplemented" : "submitted" } : {}),
+        ...(body.action === "resolve_subject_notification_unknown" ? { deliveryId: body.deliveryId, outcome: body.outcome } : {}),
+      },
+      ...(external ? { recipientPseudonym: body.recipientPseudonym, snapshotVersion: body.snapshotVersion } : {}) };
     busyRef.current = true;
     setBusy(true);
     setStatus("Zapisywanie…");
     setStatusKind("");
     try {
-      const payload = await request(user, `/v1/admin/security-incidents/${encodeURIComponent(selected.incidentId)}`, { method: "PATCH", body: JSON.stringify({ ...body, expectedRevision: selected.revision }) });
-      if (epoch.current !== current) return;
+      const payload = await lifecycle.request(`/v1/admin/security-incidents/${encodeURIComponent(selectedAtStart.incidentId)}`, { method: "PATCH", body: JSON.stringify({ ...body, expectedRevision: selectedAtStart.revision }) }, lease, () => {
+        if (securityMutationBlocked(selectedAtStart.incidentId, body.action)) throw new AdminRequestError("admin_operation_already_pending", { kind: "blocked", dispatched: false });
+        operation.key = markAdminOperationPending(operation);
+      });
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
       if (!validDetails(payload?.incident)) throw new Error("Serwer nie potwierdził zmiany.");
+      if (payload.incident.incidentId !== selectedAtStart.incidentId) throw new Error("Serwer zwrócił inny incydent niż zmieniany.");
+      if (!external) operation.directResponse = true;
+      reconcileSecurity(payload.incident);
+      if (securityOperationResolved(payload.incident, operation)) clearAdminOperation(operation);
       setSelected(payload.incident);
       const updatedItem = toListItem(payload.incident);
       if (!validListItem(updatedItem)) throw new Error("Serwer nie zwrócił prawidłowej pozycji listy.");
       setItems((currentItems) => currentItems.map((item) => item.incidentId === updatedItem.incidentId ? updatedItem : item));
-      setStatus("Zmiana została zapisana i zarejestrowana w audycie.");
-      setStatusKind("success");
+      const unresolved = operation.key && pendingAdminOperations("security-incidents", operation.resource).some((entry) => entry.key === operation.key);
+      setStatus(unresolved
+        ? external ? "Wynik wysyłki pozostaje niepewny. Nie ponawiaj; odśwież szczegóły lub użyj ręcznego rozstrzygnięcia." : "Serwer nie potwierdził dokładnego wyniku. Zapis pozostaje niepewny; odśwież szczegóły przed kolejną zmianą."
+        : "Zmiana została zapisana i zarejestrowana w audycie.");
+      setStatusKind(unresolved ? "warning" : "success");
     } catch (error) {
-      if (epoch.current !== current) return;
-      if (error.status === 409 || error.status === 503 || !error.status) setConflictLocked(true);
-      setStatus(error.message);
+      if (epoch.current !== current || !lifecycle.isCurrent(lease)) return;
+      const noEffect = error.status === 401 || error.status === 403 || (error.status === 400 && error.code === "invalid_request")
+        || (error.status === 409 && error.code === "security_incident_revision_conflict");
+      if (noEffect && operation.key) clearAdminOperation(operation);
+      if (error.status === 409) setConflictLocked(true);
+      const knownNoEffect = error.status === 401 || error.status === 403 || (error.status === 400 && error.code === "invalid_request")
+        || (error.status === 409 && error.code === "security_incident_revision_conflict");
+      const unresolved = operation.key && pendingAdminOperations("security-incidents", operation.resource).some((entry) => entry.key === operation.key);
+      setStatus(error instanceof AdminRequestError && error.status !== undefined && knownNoEffect
+        ? errorFor({ status: error.status }, error.payload, true).message
+        : unresolved
+          ? (external ? "Wynik doręczenia jest niepewny. Nie ponawiaj działania; odśwież szczegóły lub użyj ręcznego rozstrzygnięcia." : "Wynik zapisu jest niepewny. Nie ponawiaj działania; odśwież szczegóły przed kolejną zmianą.")
+          : error instanceof AdminRequestError && error.status !== undefined
+            ? errorFor({ status: error.status }, error.payload, true).message
+            : error.message);
       setStatusKind("warning");
     } finally {
-      if (epoch.current === current) {
+      if (epoch.current === current && lifecycle.isCurrent(lease)) {
         busyRef.current = false;
         setBusy(false);
       }
     }
   }
 
+  const selectedOperations = selected ? pendingAdminOperations("security-incidents", securityResource(selected.incidentId)).filter((operation) => operation.resource !== "*") : [];
+  const createLocked = securityCreateBlocked();
+
   return <section className="admin-queue admin-security-queue" aria-labelledby="security-incidents-title">
     <div className="section-heading"><p className="eyebrow">BEZPIECZEŃSTWO</p><h2 id="security-incidents-title">Incydenty bezpieczeństwa</h2><p>Lista pokazuje tylko klasyfikację, termin 72 godzin i najpilniejsze działanie. Szczegóły są pobierane dopiero po otwarciu.</p></div>
     <div className="admin-action-row"><button className="button button-secondary admin-refresh" disabled={busy} onClick={() => void load(true)} type="button">Odśwież incydenty</button></div>
     {status && <div className={`admin-status ${statusKind ? `admin-status-${statusKind}` : ""}`.trim()} role={statusKind === "warning" ? "alert" : "status"}>{status}</div>}
+    {createLocked && <p className="admin-note">Wynik wcześniejszego utworzenia jest niepewny. Sprawdź listę incydentów i nie ponawiaj tworzenia.</p>}
     <details className="admin-panel security-incident-create"><summary>Dodaj incydent</summary>
       <form className="admin-privacy-form" onSubmit={create}>
         <label>Tytuł roboczy<input maxLength={200} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} required /></label>
         <AssessmentFields value={createAssessment} setValue={setCreateAssessment} idPrefix="incident-create" />
-        <button className="button button-primary" disabled={busy || conflictLocked || !createTitle.trim() || !createAssessment.details.trim()} type="submit">Utwórz incydent</button>
+        <button className="button button-primary" disabled={busy || conflictLocked || createLocked || !createTitle.trim() || !createAssessment.details.trim()} type="submit">Utwórz incydent</button>
       </form>
     </details>
     <div className="admin-report-list">{items.map((item) => <IncidentListItem key={item.incidentId} item={item} disabled={busy || conflictLocked} onOpen={open} />)}</div>
-    {selected && <IncidentDetails key={`${selected.incidentId}-${selected.revision}`} selected={selected} busy={busy} disabled={conflictLocked} act={act} onClose={() => setSelected(null)} user={user} />}
+    {selected && <>
+      {selectedOperations.length > 0 && <p className="admin-note">{selectedOperations.some((operation) => operation.action === "send_subject_notification")
+        ? "Wynik wysyłki zawiadomienia pozostaje niepewny. Nie ponawiaj; sprawdź stan serwera lub użyj ręcznego rozstrzygnięcia."
+        : selectedOperations.some((operation) => ["correct_assessment", "prepare_authority_export", "record_authority_submission", "prepare_subject_notification"].includes(operation.action))
+          ? "Odczyt nie ujawnia pełnej treści zapisanej zmiany, więc jej nie potwierdza. Nie ponawiaj tej zmiany; pozostałe działania dla incydentu są wstrzymane."
+          : "Wynik poprzedniej zmiany pozostaje niepewny. Nie ponawiaj jej; odśwież szczegóły przed kolejną zmianą."}</p>}
+      <IncidentDetails key={`${selected.incidentId}-${selected.revision}`} selected={selected} busy={busy} disabled={conflictLocked} mutationLocked={securityResourceBlocked(selected.incidentId)} recoveryLocked={securityRecoveryBlocked(selected.incidentId)} act={act} onClose={() => setSelected(null)} user={user} lifecycle={lifecycle} userId={user?.uid} />
+    </>}
   </section>;
 }
