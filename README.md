@@ -35,3 +35,5 @@ The backend owns publication configuration and administrator authorization. Ques
 ## Hosting
 
 The configured Firebase Hosting site is `patternly-app-sandbox`. A deployment publishes only the verified `dist` directory. Deployment requires its own approval and remote verification; a local build does not establish what the hosted site serves.
+
+The single working queue is [the application working plan](../patternly/docs/PATTERNLY-WORKING-PLAN.md). Hosting preparation and rollback procedure: [WEB-PUBLISH](../patternly/docs/specs/engineering/web-release.md).
