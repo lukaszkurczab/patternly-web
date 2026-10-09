@@ -67,26 +67,48 @@ test("mounted Coding and AWS demos bind feedback to stable IDs under all display
         assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
         assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral");
         assert.equal(await page.locator(".practice-topbar span").first().textContent(), label);
-        assert.equal(await page.getByText("Choose an answer to see why.").count(), 1);
-        assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Check answer" }).isDisabled(), true);
+        assert.equal(await page.locator(".practice-feedback").count(), 0);
+        assert.equal(await page.locator(".practice-status").count(), 0);
+        assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
         for (const [index, option] of optionOrder.entries()) assert.equal(await page.locator(`#session-answer-${option.optionId} + label span`).textContent(), String.fromCharCode(65 + index));
         for (const option of question.interaction.options) {
-          await page.locator(`#session-answer-${option.optionId}`).check();
+          await page.locator(`#session-answer-${option.optionId} + label`).click();
           assert.equal(await page.getByRole("radio", { checked: true }).getAttribute("value"), option.optionId);
+          assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral");
+          assert.equal(await page.locator(".practice-feedback").count(), 0, "Selection alone must not publish feedback to visual or accessibility trees.");
+          assert.equal(await page.locator(".practice-status").count(), 0);
+          assert.equal(await page.getByText(question.feedback.reason, { exact: true }).count(), 0);
+          for (const wrongReason of wrongById.values()) assert.equal(await page.getByText(wrongReason, { exact: true }).count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Check answer" }).isEnabled(), true);
+          await page.getByRole("button", { name: "Check answer" }).click();
           assert.equal(await page.locator("#session").getAttribute("data-state"), option.optionId === answerId ? "resolved" : "focused");
           assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), option.optionId === answerId ? question.feedback.reason : wrongById.get(option.optionId));
           assert.match(await page.locator(".practice-status").textContent(), option.optionId === answerId ? /Correct/u : /Not quite/u);
-          assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 1);
+          assert.equal(await page.getByRole("button", { name: /Try again/u }).count(), 1);
+          assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 1);
+          await page.getByRole("button", { name: /See the key idea/u }).click();
+          await assertDetailsParagraphs(page, demo);
+          const alternate = question.interaction.options.find((candidate) => candidate.optionId !== option.optionId);
+          await page.locator(`#session-answer-${alternate.optionId} + label`).click();
+          assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral");
+          assert.equal(await page.locator(".practice-feedback").count(), 0, "Changing an answer clears the submitted result and Details.");
+          assert.equal(await page.locator("#session-details").count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Check answer" }).isEnabled(), true);
+          await page.locator(`#session-answer-${option.optionId} + label`).click();
+          await page.getByRole("button", { name: "Check answer" }).click();
+          assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), option.optionId === answerId ? question.feedback.reason : wrongById.get(option.optionId));
           await page.getByRole("button", { name: /See the key idea/u }).click();
           assert.equal(await page.getByRole("button", { name: /See the key idea/u }).getAttribute("aria-expanded"), "true");
           await assertDetailsParagraphs(page, demo);
           await page.getByRole("button", { name: /Try again/u }).click();
           assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral");
+          assert.equal(await page.getByRole("button", { name: "Check answer" }).isDisabled(), true);
           assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
           assert.equal(await page.locator("#session-details").count(), 0);
           assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
-          assert.equal(await page.getByText("This page does not offer a link to access the app yet.", { exact: true }).count(), 0);
+          assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 0);
         }
       }
     }

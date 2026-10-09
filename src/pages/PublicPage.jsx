@@ -95,6 +95,7 @@ function Hero({ selectedTrack, question, titleRef }) {
           <a className="button button-secondary" href="#tracks">Explore tracks <span aria-hidden="true">→</span></a>
         </div>
         <p className="hero-note"><span className="status-dot" aria-hidden="true" /> Try a question. No account needed.</p>
+        <p className="hero-note">Patternly is coming to the App Store. Download is not available yet.</p>
       </Reveal>
       <Reveal className="hero-practice reveal-delay"><InteractiveQuestion key={`${selectedTrack.id}:${question.provenance.questionId}`} demo={question} progressNote={selectedTrack.demoNote} titleRef={titleRef} trackLabel={selectedTrack.demoLabel} /></Reveal>
     </section>

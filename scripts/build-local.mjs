@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const demoCheck = spawnSync(process.execPath, [resolve(root, "scripts/check-canonical-demo.mjs")], { cwd: root, stdio: "inherit" });
+const demoCheck = spawnSync(process.execPath, [resolve(root, "scripts/check-canonical-demo.mjs"), "--local-admitted-source"], { cwd: root, stdio: "inherit" });
 if (demoCheck.error) throw demoCheck.error;
 if (demoCheck.status !== 0) process.exit(demoCheck.status ?? 1);
 const artifact = createAppProducedPublicLegalTestArtifact();
