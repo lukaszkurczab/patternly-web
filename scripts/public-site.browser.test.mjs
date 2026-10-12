@@ -83,3 +83,89 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('visible reveal content stays exposed to keyboard and accessibility before intersection', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'patternly-web-reveal-browser-'));
+  const artifact = createAppProducedPublicLegalTestArtifact();
+  const path = join(directory, 'legal.json');
+  await writeFile(path, JSON.stringify(artifact));
+  process.env.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH = path;
+  process.env.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT = artifact.sourceFingerprint;
+  let server;
+  let browser;
+  try {
+    server = await preview({ mode: 'local-test', preview: { host: '127.0.0.1', port: 0 } });
+    const base = `http://127.0.0.1:${server.httpServer.address().port}`;
+    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    const context = await browser.newContext({ reducedMotion: 'no-preference' });
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      const observers = [];
+      window.__patternlyRevealObservers = observers;
+      window.__triggerPatternlyReveal = (selector) => {
+        const observer = observers.find((candidate) => candidate.target?.matches(selector));
+        if (!observer) return false;
+        observer.callback([{ target: observer.target, isIntersecting: true, intersectionRatio: 1 }], observer);
+        return true;
+      };
+      window.IntersectionObserver = class HeldIntersectionObserver {
+        constructor(callback) { this.callback = callback; observers.push(this); }
+        observe(target) { this.target = target; }
+        disconnect() {}
+        unobserve() {}
+        takeRecords() { return []; }
+      };
+    });
+    await page.goto(base);
+    await page.waitForFunction(() => document.querySelector('#session input')?.disabled === false);
+
+    const reveal = page.locator('#tracks .track-atlas');
+    const accessibleHeading = reveal.getByRole('heading', { name: 'Coding Interview: DSA & Problem Solving' });
+    const keyboardButton = page.locator('#tracks [data-track-id="aws-certified-solutions-architect-associate"] .track-demo-button');
+    await keyboardButton.waitFor({ state: 'visible' });
+    assert.equal(await keyboardButton.isDisabled(), false);
+
+    const inspectReveal = () => reveal.evaluate((element) => ({
+      ariaHidden: element.getAttribute('aria-hidden'),
+      inert: element.inert,
+      buttonTabIndex: element.querySelector('.track-demo-button')?.getAttribute('tabindex') ?? null,
+      visibleClass: element.classList.contains('is-visible'),
+    }));
+    assert.deepEqual(await inspectReveal(), { ariaHidden: null, inert: false, buttonTabIndex: null, visibleClass: false });
+    assert.equal(await accessibleHeading.count(), 1, 'Chrome role lookup exposes the visible heading before intersection');
+
+    const cdp = await context.newCDPSession(page);
+    const headingIsInAxTree = async () => {
+      const { nodes } = await cdp.send('Accessibility.getFullAXTree');
+      return nodes.some((node) => node.ignored === false && node.role?.value === 'heading' && node.name?.value === 'Coding Interview: DSA & Problem Solving');
+    };
+    assert.equal(await headingIsInAxTree(), true, 'Chrome AX tree exposes the visible heading before intersection');
+
+    const focusByKeyboard = async () => {
+      await page.evaluate(() => document.activeElement?.blur?.());
+      for (let attempt = 0; attempt < 64; attempt += 1) {
+        await page.keyboard.press('Tab');
+        if (await keyboardButton.evaluate((element) => document.activeElement === element)) return true;
+      }
+      return false;
+    };
+    assert.equal(await focusByKeyboard(), true, 'Tab reaches the visible demo button before intersection');
+    assert.equal(await keyboardButton.evaluate((element) => document.activeElement === element), true);
+
+    assert.equal(await page.evaluate(() => window.__triggerPatternlyReveal('#tracks .track-atlas')), true, 'the held observer can release the actual reveal target');
+    await page.waitForFunction(() => document.querySelector('#tracks .track-atlas')?.classList.contains('is-visible'));
+    assert.deepEqual(await inspectReveal(), { ariaHidden: null, inert: false, buttonTabIndex: null, visibleClass: true });
+    assert.equal(await accessibleHeading.count(), 1);
+    assert.equal(await headingIsInAxTree(), true, 'Chrome AX tree still exposes the heading after intersection');
+
+    assert.equal(await focusByKeyboard(), true, 'Tab still reaches the demo button after intersection');
+    await page.keyboard.press('Enter');
+    assert.equal(await keyboardButton.getAttribute('aria-pressed'), 'true', 'keyboard activation remains available after intersection');
+    await cdp.detach();
+    await context.close();
+  } finally {
+    await browser?.close();
+    if (server) await new Promise((done) => server.httpServer.close(done));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
