@@ -172,3 +172,23 @@ try {
 
 await rm(fixtureDirectory, { recursive: true, force: true });
 process.stdout.write("Public build, legal pages, locale content, route boundary, marketing render, and local admin entry verification passed.\n");
+
+for (const [file, heading] of [['index.html', 'Build '], ['privacy.html', 'Privacy policy'], ['terms.html', 'Terms of service']]) {
+  const html = await readFile(resolve(dist, file), 'utf8');
+  assert.match(html, /<div id="root">.+<h1/su);
+  assert.ok(html.includes(heading));
+  assert.match(html, /name="description"/u);
+  assert.match(html, /property="og:image"/u);
+  assert.match(html, /rel="canonical"/u);
+  assert.match(html, /name="robots" content="noindex, nofollow"/u);
+  for (const match of html.matchAll(/(?:src|href)="(\/[^"#?]+)"/gu)) {
+    if (/\.(svg|png|css|js|woff2)$/u.test(match[1])) await readFile(resolve(dist, `.${match[1]}`));
+  }
+}
+for (const file of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'social-preview.png', '404.html']) await readFile(resolve(dist, file));
+assert.match(await readFile(resolve(dist, 'robots.txt'), 'utf8'), /Disallow: \//u);
+const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
+assert.equal((sitemap.match(/<loc>/gu) || []).length, 3);
+assert.doesNotMatch(sitemap, /admin|privacy-request/u);
+assert.match(await readFile(resolve(dist, '404.html'), 'utf8'), /name="robots" content="noindex"/u);
+process.stdout.write('Prerendered HTML, metadata, static assets and indexing boundaries passed.\n');

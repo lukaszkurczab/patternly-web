@@ -1,3 +1,4 @@
+import { publicSitePlugin } from "./scripts/public-site.mjs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -36,22 +37,25 @@ function localAdminRoutePlugin() {
   };
 }
 
-export default defineConfig(({ mode }) => ({
-  appType: "mpa",
-  plugins: [localAdminRoutePlugin()],
-  esbuild: {
-    jsx: "automatic",
-  },
-  build: {
-    rollupOptions: {
-      input: {
-        index: resolve(projectRoot, "index.html"),
-        privacy: resolve(projectRoot, "privacy.html"),
-        terms: resolve(projectRoot, "terms.html"),
+export default defineConfig(({ mode }) => {
+  const legal = loadPublicLegalArtifact(process.env, mode === "local-test" ? "local-test" : "production");
+  return {
+    appType: "mpa",
+    plugins: [localAdminRoutePlugin(), publicSitePlugin(legal, mode === "local-test")],
+    esbuild: {
+      jsx: "automatic",
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(projectRoot, "index.html"),
+          privacy: resolve(projectRoot, "privacy.html"),
+          terms: resolve(projectRoot, "terms.html"),
+        },
       },
     },
-  },
-  define: {
-    __PATTERNLY_PUBLIC_LEGAL__: JSON.stringify(loadPublicLegalArtifact(process.env, mode === "local-test" ? "local-test" : "production")),
-  },
-}));
+    define: {
+      __PATTERNLY_PUBLIC_LEGAL__: JSON.stringify(legal),
+    },
+  };
+});

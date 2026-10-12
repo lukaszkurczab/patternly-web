@@ -22,6 +22,18 @@ If the mobile app producer emits all seven supported locales, public legal pages
 
 The public page's interactive example does not save progress or schedule reviews. Manrope and IBM Plex Sans are bundled locally. Track SVGs come from the mobile app icon mapping. The page does not offer a purchase action.
 
+## Public HTML and discovery
+
+The Vite build prerenders the home page and English privacy/terms documents from the existing React components using the same validated legal artifact as the client bundle. React hydrates that HTML; local development renders on the client. Without JavaScript the content and section links remain readable, while demo controls and language selection remain disabled with explanatory text. Reveal sections are visible before JavaScript runs.
+
+The canonical production origin is `https://patternly.it/`, as recorded in WEB-PUBLISH. All three pages include descriptions, canonical links, Open Graph/Twitter metadata and static icons. The sitemap lists only the three public pages. Production robots allows crawling; local-test builds include `noindex,nofollow` and a disallow-all robots file. These directives are discovery settings, not access controls or proof that a build is deployable. Existing legal and release gates still apply.
+
+`public/404.html` is Firebase Hosting's static not-found document. Local tests verify its content and negative-route status codes; Firebase's actual 404 rendering and status remain part of publication acceptance. The mobile sticky header keeps its practice CTA at 320 px and above.
+
+Run `npm run verify:local`, then `npm run test:public-site:browser` for prerendered content, metadata/assets, hydration, no-JavaScript behavior, responsive widths 320/390/768/1440, and the existing demo interactions. Browser checks use installed Google Chrome. Rebuild the versioned icons and 1200×630 social artwork with `npm run prepare:public-images`; the brand source remains `assets/brand/mark/patternly-mark-mint.svg`. No analytics integration or cookie banner was added.
+
+Current acceptance (2026-10-12): `verify:local`, all six public legal contract tests, and all three sequential public-site browser tests pass. Browser evidence covers demo keyboard interaction and real 200% Chrome zoom, hydration and legal locale changes, no-JavaScript content, four responsive widths and sticky CTA after scrolling. Independent review found no blocking defect; the sticky CTA evidence gap was closed by the browser test. Remote production data, DNS, publication and remote 404 acceptance remain in WEB-PUBLISH.
+
 ## Local administrator workspace
 
 From `../patternly-backend`, run `npm run dev:admin`, then open `http://127.0.0.1:25173/admin`. The launcher starts the local API and Firebase emulators and supplies web configuration. Credentials and persistent local data are described in `../patternly-backend/docs/local-admin.md`. No cloud account is needed.

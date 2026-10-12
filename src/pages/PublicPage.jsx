@@ -1,3 +1,4 @@
+import { useClientReady } from "../hooks/useClientReady";
 import routeIcon from "../../assets/icons/route.svg?raw";
 import databaseIcon from "../../assets/icons/database.svg?raw";
 import gridIcon from "../../assets/icons/grid.svg?raw";
@@ -29,6 +30,7 @@ const tracks = [
 const demosByTrackId = new Map(demoCatalog.demos.map((demo) => [demo.provenance.trackId, demo]));
 
 function Header() {
+  const ready = useClientReady();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const menuToggleRef = useRef(null);
@@ -60,6 +62,7 @@ function Header() {
             <a href="#tracks">Tracks</a>
           </div>
           <button
+            disabled={!ready}
             aria-controls="compact-navigation"
             aria-expanded={menuOpen}
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
@@ -79,6 +82,7 @@ function Header() {
           </div>
         </nav>
       </div>
+      <noscript><nav className="no-script-nav" aria-label="Page sections"><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a></nav></noscript>
     </header>
   );
 }
@@ -125,7 +129,7 @@ function MethodSection() {
   );
 }
 
-function TracksSection({ selectedTrackId, onSelectTrack }) {
+function TracksSection({ selectedTrackId, onSelectTrack, ready }) {
   return (
     <section className="content-section tracks-section section-shell" id="tracks" aria-labelledby="tracks-title">
       <Reveal className="section-intro centered">
@@ -143,7 +147,7 @@ function TracksSection({ selectedTrackId, onSelectTrack }) {
               dangerouslySetInnerHTML={{ __html: track.svg }}
             />
             <div><h3>{track.name}</h3><p>{track.focus}</p>{track.legalNote ? <p className="track-legal-note">{track.legalNote}</p> : null}</div>
-            {demosByTrackId.has(track.id) ? <button aria-pressed={selectedTrackId === track.id} className="track-demo-button" onClick={() => onSelectTrack(track.id)} type="button">{track.demoAction}</button> : null}
+            {demosByTrackId.has(track.id) ? <button disabled={!ready} aria-pressed={selectedTrackId === track.id} className="track-demo-button" onClick={() => onSelectTrack(track.id)} type="button">{track.demoAction}</button> : null}
           </article>
         ))}
       </Reveal>
@@ -162,6 +166,7 @@ function Footer() {
 }
 
 export function PublicPage() {
+  const ready = useClientReady();
   const [selectedTrackId, setSelectedTrackId] = useState("coding-interview-dsa-problem-solving");
   const questionTitleRef = useRef(null);
   const previousTrackId = useRef(selectedTrackId);
@@ -188,7 +193,7 @@ export function PublicPage() {
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <Header />
-      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><TracksSection selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /></main>
+      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><TracksSection ready={ready} selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /></main>
       <Footer />
     </>
   );

@@ -1,25 +1,18 @@
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import "../styles.css";
 import { PublicPage } from "./pages/PublicPage";
-import markMint from "../assets/brand/mark/patternly-mark-mint.svg";
-
 const root = document.getElementById("root");
 
 if (!root) {
   throw new Error("Patternly root element is missing.");
 }
 
-let favicon = document.querySelector('link[rel="icon"]');
-if (!favicon) {
-  favicon = document.createElement("link");
-  favicon.rel = "icon";
-  document.head.append(favicon);
-}
-favicon.href = markMint;
-
-createRoot(root).render(
+const content = (
   <StrictMode>
     <PublicPage />
-  </StrictMode>,
+  </StrictMode>
 );
+
+if (root.hasChildNodes()) hydrateRoot(root, content);
+else createRoot(root).render(content);

@@ -1,6 +1,8 @@
+import { useClientReady } from "../hooks/useClientReady";
 import { useState } from "react";
 
 export function InteractiveQuestion({ demo, trackLabel, progressNote, titleRef }) {
+  const ready = useClientReady();
   const question = demo.question;
   const options = question.interaction.options;
   const correctOptionId = question.answer.optionId;
@@ -26,13 +28,14 @@ export function InteractiveQuestion({ demo, trackLabel, progressNote, titleRef }
         <p className="question-label">Practice question</p>
         <h2 id="session-title" ref={titleRef} tabIndex={-1}>{question.prompt}</h2>
       </div>
+      <noscript><p className="practice-note">Enable JavaScript to answer this practice question.</p></noscript>
       <div className="practice-options" role="radiogroup" aria-labelledby="session-title">
         {options.map((option, index) => {
           const inputId = `session-answer-${option.optionId}`;
           const isSelected = selected === option.optionId;
           return (
             <div className="practice-option" key={option.optionId} data-state={isSelected ? "selected" : undefined}>
-              <input checked={isSelected} className="choice-input" id={inputId} name="session-answer" onChange={() => { setSelected(option.optionId); setSubmitted(false); setDetailsOpen(false); }} type="radio" value={option.optionId} />
+              <input disabled={!ready} checked={isSelected} className="choice-input" id={inputId} name="session-answer" onChange={() => { setSelected(option.optionId); setSubmitted(false); setDetailsOpen(false); }} type="radio" value={option.optionId} />
               <label htmlFor={inputId}><span>{String.fromCharCode(65 + index)}</span><strong>{option.text}</strong></label>
             </div>
           );
@@ -47,7 +50,7 @@ export function InteractiveQuestion({ demo, trackLabel, progressNote, titleRef }
         {detailsOpen && <div className="details-copy" id="session-details">{demo.detailsParagraphs.map((paragraph, index) => <p key={`${question.questionId}:detail:${index}`}>{paragraph}</p>)}</div>}
       </div>}
       <div className="practice-actions">
-        <button className="button button-primary" disabled={!submitted && selected === null} type="button" onClick={() => {
+        <button className="button button-primary" disabled={!ready || (!submitted && selected === null)} type="button" onClick={() => {
           if (submitted) reset();
           else { setSubmitted(true); setDetailsOpen(false); }
         }}>
