@@ -34,6 +34,16 @@ Run `npm run verify:local`, then `npm run test:public-site:browser` for prerende
 
 Current acceptance (2026-10-12): `verify:local`, all six public legal contract tests, and all three sequential public-site browser tests pass. Browser evidence covers demo keyboard interaction and real 200% Chrome zoom, hydration and legal locale changes, no-JavaScript content, four responsive widths and sticky CTA after scrolling. Independent review found no blocking defect; the sticky CTA evidence gap was closed by the browser test. Remote production data, DNS, publication and remote 404 acceptance remain in WEB-PUBLISH.
 
+## CI verification
+
+`.github/workflows/verify.yml` runs on every push, pull request and manual dispatch. It invokes the existing local build/boundary verification, legal validation and app-producer contract tests, admin configuration/behavior tests, public-site browser tests and demo answer/feedback permutation tests. A failed command fails the job. Chrome and Chromium are installed for the browsers already selected by these tests.
+
+CI checks out three real siblings: this revision as `patternly-web`, APP `lukaszkurczab/gcp-ace-trainer` at `3911c7c0882299ca2d5217c26a67ff24bb574af0` as `patternly`, and CONTENT `lukaszkurczab/patternly-content` at `420cdf237e6ca8f1d4cf84c3d70e38ba7896f292` as `patternly-content`. APP and CONTENT include full Git history because the existing demo exporter reads its historical admission pins with `git show`. Only APP and web need `npm ci`; backend services and CONTENT dependencies are unnecessary for this suite. To reproduce, use those sibling paths and revisions, Node 22.13.1, install APP/web dependencies, run `npx playwright install --with-deps chrome chromium` in web, then run the workflow's existing package commands in order.
+
+The sibling SHAs are explicit compatibility inputs, not moving branches. Update them deliberately when adopting producer/runtime changes and rerun this suite; leave the exporter's admission pins unchanged unless its own contract changes. Local WIP in neighboring repositories is not included in hosted CI.
+
+Legal checks use the existing app-produced synthetic `testOnly` artifact; the explicit producer test receives its temporary path and fingerprint only for that command. This is test evidence, not approved legal data. The workflow has read-only repository permissions, no deployment step and no production credentials. Production build, legal approval, live Auth/API acceptance and publication retain their separate gates.
+
 ## Local administrator workspace
 
 From `../patternly-backend`, run `npm run dev:admin`, then open `http://127.0.0.1:25173/admin`. The launcher starts the local API and Firebase emulators and supplies web configuration. Credentials and persistent local data are described in `../patternly-backend/docs/local-admin.md`. No cloud account is needed.

@@ -1,0 +1,100 @@
+name: Web verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: patternly-web
+    steps:
+      - name: Checkout web under test
+        uses: actions/checkout@v4
+        with:
+          path: patternly-web
+          persist-credentials: false
+
+      # Existing exporters import ../patternly and read historical APP/CONTENT
+      # receipts via git show. Keep real sibling paths and their full history.
+      - name: Checkout pinned app producer and runtime
+        uses: actions/checkout@v4
+        with:
+          repository: lukaszkurczab/gcp-ace-trainer
+          ref: 3911c7c0882299ca2d5217c26a67ff24bb574af0
+          path: patternly
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout pinned content history
+        uses: actions/checkout@v4
+        with:
+          repository: lukaszkurczab/patternly-content
+          ref: 420cdf237e6ca8f1d4cf84c3d70e38ba7896f292
+          path: patternly-content
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+          cache-dependency-path: |
+            patternly/package-lock.json
+            patternly-web/package-lock.json
+
+      - name: Install app exporter dependencies
+        working-directory: patternly
+        run: npm ci
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Install browsers used by existing tests
+        run: npx playwright install --with-deps chrome chromium
+
+      - name: Verify local public build, legal pages and admin exclusion
+        run: npm run verify:local
+
+      - name: Test legal validation and locale availability
+        run: npm run test:public-legal
+
+      - name: Test app-produced synthetic legal contract (not release approval)
+        run: |
+          node --input-type=module <<'JS'
+          import { writeFileSync, rmSync } from 'node:fs';
+          import { spawnSync } from 'node:child_process';
+          import { join } from 'node:path';
+          import { createAppProducedPublicLegalTestArtifact } from './scripts/publicLegalTestArtifact.mjs';
+          const artifact = createAppProducedPublicLegalTestArtifact();
+          const path = join(process.env.RUNNER_TEMP, 'public-legal-test-only.json');
+          writeFileSync(path, JSON.stringify(artifact));
+          try {
+            const result = spawnSync('npm', ['run', 'test:public-legal:producer'], {
+              stdio: 'inherit',
+              env: { ...process.env, PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH: path,
+                PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT: artifact.sourceFingerprint },
+            });
+            if (result.error) throw result.error;
+            process.exitCode = result.status ?? 1;
+          } finally { rmSync(path, { force: true }); }
+          JS
+
+      - name: Test local-only admin configuration
+        run: npm run test:admin-config
+
+      - name: Test mounted admin behavior
+        run: npm run test:admin-behavior
+
+      - name: Test public pages and built demo in browser
+        run: npm run test:public-site:browser
+
+      - name: Test demo answer and feedback permutations in browser
+        run: npm run test:demo:browser
