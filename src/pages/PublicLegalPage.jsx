@@ -36,7 +36,10 @@ function Document({ title, document, version, locale, onLocaleChange, ready }) {
         <p className="legal-version">Document version: {version}</p>
         <noscript><p>Enable JavaScript to change the document language.</p></noscript>
         <article className="legal-copy" lang={locale}>
-          {paragraphs.map((paragraph, index) => <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>)}
+          {paragraphs.map((paragraph, index) => <p
+            key={`${index}-${paragraph.slice(0, 24)}`}
+            id={document === "termsOfService" && /^16\.\s/u.test(paragraph) ? "support" : undefined}
+          >{paragraph}</p>)}
         </article>
       </main>
       <footer className="legal-footer"><a href={legal.publicLinks.privacyUrl}>Privacy</a><a href={legal.publicLinks.termsUrl}>Terms</a><a href={legal.publicLinks.supportUrl}>Support</a></footer>

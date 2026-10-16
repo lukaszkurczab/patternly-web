@@ -8,6 +8,10 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+const browserOptions = process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH
+  ? { executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH, headless: true }
+  : { channel: 'chrome', headless: true };
+
 test('production metadata permits indexing while local metadata does not', () => {
   const html = '<html><head></head></html>';
   const production = publicSitePlugin({}, false).transformIndexHtml(html, { filename: '/index.html' });
@@ -28,7 +32,7 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
   try {
     server = await preview({ mode: 'local-test', preview: { host: '127.0.0.1', port: 0 } });
     const base = `http://127.0.0.1:${server.httpServer.address().port}`;
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await chromium.launch(browserOptions);
     const errors = [];
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -57,6 +61,14 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
       await page.waitForFunction(() => document.documentElement.lang === 'pl');
       assert.ok(await page.locator('h1').textContent());
     }
+    await page.goto(base + '/terms.html#support');
+    await page.locator('select:not(:disabled)').waitFor();
+    assert.equal(await page.locator('#support').count(), 1);
+    await page.waitForFunction(() => Math.abs(document.querySelector('#support').getBoundingClientRect().top) < innerHeight);
+    assert.ok(await page.locator('#support').evaluate((element) => Math.abs(element.getBoundingClientRect().top) < innerHeight), 'Support fragment scrolls after hydration');
+    await page.locator('select').selectOption('pl');
+    assert.equal(await page.locator('#support').count(), 1);
+    assert.match(await page.locator('#support').textContent(), /^16\./u);
     await context.close();
     const noJs = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 320, height: 900 } });
     const staticPage = await noJs.newPage();
@@ -72,6 +84,16 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
       assert.ok(await staticPage.locator('.legal-copy').isVisible());
       assert.ok(await staticPage.locator('select').isDisabled());
     }
+    await staticPage.goto(base + '/terms.html#support');
+    assert.equal(await staticPage.locator('#support').count(), 1);
+    // Poll from Node: page waitForFunction uses a page timer/RAF, disabled in this context.
+    let supportVisible = false;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      supportVisible = await staticPage.locator('#support').evaluate((element) => Math.abs(element.getBoundingClientRect().top) < innerHeight);
+      if (supportVisible) break;
+      await new Promise((done) => setTimeout(done, 100));
+    }
+    assert.ok(supportVisible, 'Prerendered support fragment scrolls without JavaScript');
     await staticPage.goto(base + '/404.html');
     assert.equal(await staticPage.locator('h1').textContent(), 'Page not found');
     for (const route of ['/unknown-page', '/admin', '/admin/', '/admin.html', '/privacy-request', '/privacy-request/example']) assert.equal((await fetch(base + route)).status, 404);
@@ -96,7 +118,7 @@ test('visible reveal content stays exposed to keyboard and accessibility before 
   try {
     server = await preview({ mode: 'local-test', preview: { host: '127.0.0.1', port: 0 } });
     const base = `http://127.0.0.1:${server.httpServer.address().port}`;
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await chromium.launch(browserOptions);
     const context = await browser.newContext({ reducedMotion: 'no-preference' });
     const page = await context.newPage();
     await page.addInitScript(() => {
