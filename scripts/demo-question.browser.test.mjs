@@ -51,7 +51,7 @@ async function bundleFor(trackId, optionOrder) {
 }
 
 test("mounted Coding and AWS demos bind feedback to stable IDs under all display permutations", async () => {
-  const browser = await chromium.launch({ headless: true, channel: "chrome" });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH } : { channel: "chrome" }) });
   try {
     const page = await browser.newPage();
     for (const { trackId, label } of demoCases) {
@@ -70,7 +70,7 @@ test("mounted Coding and AWS demos bind feedback to stable IDs under all display
         assert.equal(await page.getByRole("button", { name: "Check answer" }).isDisabled(), true);
         assert.equal(await page.locator(".practice-feedback").count(), 0);
         assert.equal(await page.locator(".practice-status").count(), 0);
-        assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 0);
+        assert.equal(await page.getByText("Android is planned first; iOS will follow. Neither app is available to download yet.", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
         for (const [index, option] of optionOrder.entries()) assert.equal(await page.locator(`#session-answer-${option.optionId} + label span`).textContent(), String.fromCharCode(65 + index));
         for (const option of question.interaction.options) {
@@ -87,7 +87,7 @@ test("mounted Coding and AWS demos bind feedback to stable IDs under all display
           assert.equal(await page.locator(".practice-feedback > p").nth(1).textContent(), option.optionId === answerId ? question.feedback.reason : wrongById.get(option.optionId));
           assert.match(await page.locator(".practice-status").textContent(), option.optionId === answerId ? /Correct/u : /Not quite/u);
           assert.equal(await page.getByRole("button", { name: /Try again/u }).count(), 1);
-          assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 1);
+          assert.equal(await page.getByText("Android is planned first; iOS will follow. Neither app is available to download yet.", { exact: true }).count(), 1);
           await page.getByRole("button", { name: /See the key idea/u }).click();
           await assertDetailsParagraphs(page, demo);
           const alternate = question.interaction.options.find((candidate) => candidate.optionId !== option.optionId);
@@ -108,7 +108,7 @@ test("mounted Coding and AWS demos bind feedback to stable IDs under all display
           assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
           assert.equal(await page.locator("#session-details").count(), 0);
           assert.equal(await page.getByRole("button", { name: /See the key idea/u }).count(), 0);
-          assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 0);
+          assert.equal(await page.getByText("Android is planned first; iOS will follow. Neither app is available to download yet.", { exact: true }).count(), 0);
         }
       }
     }

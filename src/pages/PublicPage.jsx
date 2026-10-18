@@ -9,10 +9,12 @@ import settingsIcon from "../../assets/icons/settings.svg?raw";
 import cpuIcon from "../../assets/icons/cpu.svg?raw";
 import sparkleIcon from "../../assets/icons/sparkle.svg?raw";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AppAvailability } from "../components/AppAvailability";
 import { Brand } from "../components/Brand";
 import { InteractiveQuestion } from "../components/InteractiveQuestion";
 import { Reveal } from "../hooks/useReveal";
 import demoCatalog from "../generated/demoQuestions.json";
+import { publicTrackPages } from "../publicTrackPages.js";
 
 const publicLegal = __PATTERNLY_PUBLIC_LEGAL__;
 
@@ -59,7 +61,7 @@ function Header() {
           <div className="navigation-links">
             <a href="#product">Overview</a>
             <a href="#method">How it works</a>
-            <a href="#tracks">Tracks</a>
+            <a href="#tracks">Tracks</a><a href="#help">Help</a>
           </div>
           <button
             disabled={!ready}
@@ -78,11 +80,11 @@ function Header() {
           <div ref={menuRef} className={`compact-navigation ${menuOpen ? "is-open" : ""}`.trim()} id="compact-navigation">
             <a href="#product" onClick={closeMenu}>Overview</a>
             <a href="#method" onClick={closeMenu}>How it works</a>
-            <a href="#tracks" onClick={closeMenu}>Tracks</a>
+            <a href="#tracks" onClick={closeMenu}>Tracks</a><a href="#help" onClick={closeMenu}>Help</a>
           </div>
         </nav>
       </div>
-      <noscript><nav className="no-script-nav" aria-label="Page sections"><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a></nav></noscript>
+      <noscript><nav className="no-script-nav" aria-label="Page sections"><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a><a href="#help">Help</a></nav></noscript>
     </header>
   );
 }
@@ -99,7 +101,7 @@ function Hero({ selectedTrack, question, titleRef }) {
           <a className="button button-secondary" href="#tracks">Explore tracks <span aria-hidden="true">→</span></a>
         </div>
         <p className="hero-note"><span className="status-dot" aria-hidden="true" /> Try a question. No account needed.</p>
-        <p className="hero-note">Patternly is coming to the App Store. Download is not available yet.</p>
+        <AppAvailability className="hero-note" />
       </Reveal>
       <Reveal className="hero-practice reveal-delay"><InteractiveQuestion key={`${selectedTrack.id}:${question.provenance.questionId}`} demo={question} progressNote={selectedTrack.demoNote} titleRef={titleRef} trackLabel={selectedTrack.demoLabel} /></Reveal>
     </section>
@@ -139,14 +141,14 @@ function TracksSection({ selectedTrackId, onSelectTrack, ready }) {
       </Reveal>
       <Reveal className="track-atlas reveal-delay">
         {tracks.map((track) => (
-          <article className="track-card" data-track-id={track.id} key={track.id}>
+          <article className="track-card" id={track.id} data-track-id={track.id} key={track.id}>
             <span
               aria-hidden="true"
               className="track-icon"
               data-track-icon={track.iconName}
               dangerouslySetInnerHTML={{ __html: track.svg }}
             />
-            <div><h3>{track.name}</h3><p>{track.focus}</p>{track.legalNote ? <p className="track-legal-note">{track.legalNote}</p> : null}</div>
+            <div><h3>{track.name}</h3><p>{track.focus}</p>{track.legalNote ? <p className="track-legal-note">{track.legalNote}</p> : null}{publicTrackPages.find((page) => page.trackId === track.id) ? <p><a className="track-guide-link" href={publicTrackPages.find((page) => page.trackId === track.id).path}>Read the practice guide</a></p> : null}</div>
             {demosByTrackId.has(track.id) ? <button disabled={!ready} aria-pressed={selectedTrackId === track.id} className="track-demo-button" onClick={() => onSelectTrack(track.id)} type="button">{track.demoAction}</button> : null}
           </article>
         ))}
@@ -156,10 +158,66 @@ function TracksSection({ selectedTrackId, onSelectTrack, ready }) {
   );
 }
 
+function AppSection() {
+  return (
+    <section className="content-section section-shell" id="app" aria-labelledby="app-title">
+      <Reveal className="section-intro">
+        <p className="eyebrow">Inside the app</p>
+        <h2 id="app-title">A place to return to your practice.</h2>
+        <p>For people preparing for technical interviews or studying cloud and AI concepts. Choose a topic, work through questions and explanations, and revisit your learning history.</p>
+      </Reveal>
+      <div className="practice-steps">
+        <article className="practice-step"><div className="step-content"><h3>Choose a focus</h3><p>Browse tracks and topics in Practice. Access depends on the topic and mode you select.</p></div></article>
+        <article className="practice-step"><div className="step-content"><h3>Understand the reasoning</h3><p>Work through practice questions and read feedback. Use explanations to examine the choices, not just memorise an answer.</p></div></article>
+        <article className="practice-step"><div className="step-content"><h3>Return to your work</h3><p>The app keeps learning history and a Progress view. This website demo does not save progress or schedule reviews.</p></div></article>
+      </div>
+      <p className="app-preview-note">Actual screens from the iOS development version, using a fictional profile and demonstration practice history. Premium access is enabled locally; no purchase is shown.</p>
+      <div className="app-previews">
+        <figure>
+          <a href="/app-preview/topics-ios.png" aria-label="View the topic and practice modes screen at full size">
+            <img src="/app-preview/topics-ios.png" alt="Coding Interview practice screen with an active topic, practice modes and a Premium label on Coding Mock Interview." width="1206" height="2622" loading="lazy" decoding="async" />
+          </a>
+          <figcaption>Choose a topic and see its practice modes.</figcaption>
+        </figure>
+        <figure>
+          <a href="/app-preview/practice-ios.png" aria-label="View the practice screen at full size">
+            <img src="/app-preview/practice-ios.png" alt="Practice question with the correct answer highlighted and its explanation below." width="1206" height="2622" loading="lazy" decoding="async" />
+          </a>
+          <figcaption>Read the reasoning after each answer.</figcaption>
+        </figure>
+        <figure>
+          <a href="/app-preview/today-ios.png" aria-label="View the Today screen at full size">
+            <img src="/app-preview/today-ios.png" alt="Today screen for Coding Interview showing ten answers recorded this week on a fictional profile." width="1206" height="2622" loading="lazy" decoding="async" />
+          </a>
+          <figcaption>Return to your activity for the week.</figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
+function HelpSection() {
+  return (
+    <section className="content-section section-shell" id="help" aria-labelledby="help-title">
+      <Reveal className="section-intro">
+        <p className="eyebrow">Before you begin</p>
+        <h2 id="help-title">Questions about Patternly</h2>
+      </Reveal>
+      <div className="help-questions">
+        <details><summary>Can I download the app?</summary><AppAvailability /></details>
+        <details><summary>What can I try here?</summary><p>Choose the Coding Interview or AWS example, answer one question and read its feedback and key idea. You can reset the example or switch tracks. This is a small sample, not a full course or an assessment of exam readiness.</p></details>
+        <details><summary>What is Free, and what requires Premium?</summary><p>In the current app, Free-eligible Coding Interview and Certification tracks include one complete free topic. The remaining content, all Design Interview modes, certification exam simulations and Coding Interview Mock require Premium access.</p><p>Premium is intended to cover Premium content across tracks through one subscription. Purchases are not available yet. The website demo is free and does not sell subscriptions.</p></details>
+        <details><summary>Do I need an account?</summary><p>No account is needed for this demo. In the app, you can begin Free learning as a guest. Premium purchases require an account when they become available.</p></details>
+        <details><summary>Who is responsible, and how can I report a problem?</summary><p>Patternly is operated by {publicLegal.publicProfile.operator.legalName.en}. Its learning material is independent of certification providers. It does not guarantee exam results or replace official exam guidance.</p><p>For a question or content issue, include the track and question title, and describe what seems wrong. Do not send passwords or recovery codes.</p><p><a href={`mailto:${encodeURIComponent(publicLegal.publicProfile.operator.email.en)}`}>Email the Patternly operator</a> · <a href={publicLegal.publicLinks.supportUrl}>Support information</a></p></details>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer className="site-footer">
-      <div className="footer-inner"><div className="footer-brand"><Brand /><p className="footer-tagline">Practice. Understand. Try again.</p><p className="footer-note">Make time for your next step.</p></div><div className="footer-explore"><p className="eyebrow">Explore</p><div><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a></div></div></div>
+      <div className="footer-inner"><div className="footer-brand"><Brand /><p className="footer-tagline">Practice. Understand. Try again.</p><p className="footer-note">Make time for your next step.</p></div><div className="footer-explore"><p className="eyebrow">Explore</p><div><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a><a href="#help">Help</a></div></div></div>
       <div className="footer-meta"><p>Patternly is an independent learning tool. It is not an official certification provider or a guarantee of exam outcomes.</p><p>Seller: {publicLegal.publicProfile.operator.legalName.en}. Purchases are not available on this site.</p><nav aria-label="Legal and support"><a href={publicLegal.publicLinks.privacyUrl}>Privacy</a><a href={publicLegal.publicLinks.termsUrl}>Terms</a><a href={publicLegal.publicLinks.supportUrl}>Support</a></nav></div>
     </footer>
   );
@@ -193,7 +251,7 @@ export function PublicPage() {
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <Header />
-      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><TracksSection ready={ready} selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /></main>
+      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><AppSection /><TracksSection ready={ready} selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /><HelpSection /></main>
       <Footer />
     </>
   );

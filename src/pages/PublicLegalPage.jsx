@@ -1,20 +1,10 @@
+import { useEffect } from "react";
 import { useClientReady } from "../hooks/useClientReady";
 import { Brand } from "../components/Brand";
-import { useEffect, useState } from "react";
-import { availablePublicLegalLocales, PUBLIC_LEGAL_LOCALE_LABELS } from "../publicLegalLocales.js";
+import { availablePublicLegalLocales, PUBLIC_LEGAL_LOCALE_LABELS, PUBLIC_LEGAL_TITLES, publicLegalPath } from "../publicLegalLocales.js";
 
 const legal = __PATTERNLY_PUBLIC_LEGAL__;
 const availableLocales = availablePublicLegalLocales(legal);
-const labels = {
-  privacyPolicy: {
-    en: "Privacy policy", pl: "Polityka prywatności", de: "Datenschutzerklärung", fr: "Politique de confidentialité",
-    es: "Política de privacidad", it: "Informativa sulla privacy", et: "Privaatsuspoliitika",
-  },
-  termsOfService: {
-    en: "Terms of service", pl: "Warunki korzystania", de: "Nutzungsbedingungen", fr: "Conditions d’utilisation",
-    es: "Términos del servicio", it: "Termini di servizio", et: "Kasutustingimused",
-  },
-};
 
 function Document({ title, document, version, locale, onLocaleChange, ready }) {
   const text = legal.documents[document][locale];
@@ -34,7 +24,9 @@ function Document({ title, document, version, locale, onLocaleChange, ready }) {
         <p className="eyebrow">Legal information</p>
         <h1>{title}</h1>
         <p className="legal-version">Document version: {version}</p>
-        <noscript><p>Enable JavaScript to change the document language.</p></noscript>
+        <nav className="legal-language-links" aria-label="Document languages">
+          {availableLocales.map((language) => <a key={language} href={publicLegalPath(document, language)} lang={language} aria-current={language === locale ? "page" : undefined}>{PUBLIC_LEGAL_LOCALE_LABELS[language]}</a>)}
+        </nav>
         <article className="legal-copy" lang={locale}>
           {paragraphs.map((paragraph, index) => <p
             key={`${index}-${paragraph.slice(0, 24)}`}
@@ -42,24 +34,25 @@ function Document({ title, document, version, locale, onLocaleChange, ready }) {
           >{paragraph}</p>)}
         </article>
       </main>
-      <footer className="legal-footer"><a href={legal.publicLinks.privacyUrl}>Privacy</a><a href={legal.publicLinks.termsUrl}>Terms</a><a href={legal.publicLinks.supportUrl}>Support</a></footer>
+      <footer className="legal-footer"><a href={publicLegalPath("privacyPolicy", locale)}>{PUBLIC_LEGAL_TITLES.privacyPolicy[locale]}</a><a href={publicLegalPath("termsOfService", locale)}>{PUBLIC_LEGAL_TITLES.termsOfService[locale]}</a><a href={`${publicLegalPath("termsOfService", locale)}#support`}>Support</a></footer>
     </>
   );
 }
 
 export function PublicLegalPage({ document, initialLocale = "en" }) {
   const ready = useClientReady();
-  const [locale, setLocale] = useState(availableLocales.includes(initialLocale) ? initialLocale : "en");
+  if (!availableLocales.includes(initialLocale)) throw new Error("Legal document locale is unavailable.");
+  const locale = initialLocale;
   useEffect(() => {
     window.document.documentElement.lang = locale;
-    window.document.title = `${labels[document][locale]} — Patternly`;
+    window.document.title = `${PUBLIC_LEGAL_TITLES[document][locale]} — Patternly`;
   }, [document, locale]);
   return <Document
     ready={ready}
-    title={labels[document][locale]}
+    title={PUBLIC_LEGAL_TITLES[document][locale]}
     document={document}
     version={legal.documentVersion[locale]}
     locale={locale}
-    onLocaleChange={setLocale}
+    onLocaleChange={(language) => window.location.assign(`${publicLegalPath(document, language)}${window.location.hash}`)}
   />;
 }

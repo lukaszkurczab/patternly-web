@@ -23,6 +23,7 @@ export function createAppProducedPublicLegalTestArtifact() {
     termsUrl: "https://patternly.example/terms",
     supportUrl: "https://patternly.example/support",
   };
+  source.terms.operatorEmail = { en: "operator@patternly.example", pl: "operator@patternly.example" };
   source.terms.operatorLegalName = { en: "<script>alert(1)</script>", pl: "<script>alert(1)</script>" };
   return buildPublicLegalArtifactForTest(source);
 }

@@ -1,4 +1,5 @@
 import { publicSitePlugin } from "./scripts/public-site.mjs";
+import { publicPages } from "./src/publicPages.js";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -7,11 +8,12 @@ import { loadPublicLegalArtifact } from "./src/publicLegalArtifact.js";
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
-function redirectAdminAliases(server) {
+function redirectAdminAliases(server, legal) {
   server.middlewares.use((request, response, next) => {
     const requestUrl = new URL(request.url || "/", "http://patternly.local");
-    if (["/privacy", "/terms"].includes(requestUrl.pathname)) {
-      request.url = `${requestUrl.pathname}.html${requestUrl.search}`;
+    const page = publicPages(legal).find((candidate) => candidate.path === requestUrl.pathname.replace(/\.html$/u, ""));
+    if (page && page.path !== "/") {
+      request.url = `/${page.template}${requestUrl.search}`;
       next();
       return;
     }
@@ -28,11 +30,11 @@ function redirectAdminAliases(server) {
   });
 }
 
-function localAdminRoutePlugin() {
+function localAdminRoutePlugin(legal) {
   return {
     name: "patternly-local-admin-route",
     configureServer(server) {
-      redirectAdminAliases(server);
+      redirectAdminAliases(server, legal);
     },
   };
 }
@@ -41,7 +43,7 @@ export default defineConfig(({ mode }) => {
   const legal = loadPublicLegalArtifact(process.env, mode === "local-test" ? "local-test" : "production");
   return {
     appType: "mpa",
-    plugins: [localAdminRoutePlugin(), publicSitePlugin(legal, mode === "local-test")],
+    plugins: [localAdminRoutePlugin(legal), publicSitePlugin(legal, mode === "local-test")],
     esbuild: {
       jsx: "automatic",
     },

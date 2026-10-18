@@ -96,8 +96,8 @@ try {
   assert.match(privacy, /Privacy policy/u);
   assert.match(privacy, /test-2026-09-24/u);
   assert.ok(privacy.includes("Synthetic legal.privacy.controllerLegalName.en"));
-  assert.ok(privacy.includes(legalArtifact.publicLinks.privacyUrl));
-  assert.ok(privacy.includes(legalArtifact.publicLinks.termsUrl));
+  assert.ok(privacy.includes('href="/privacy"'));
+  assert.ok(privacy.includes('href="/terms"'));
   assert.doesNotMatch(privacy, /<script>alert|onerror=/iu);
   const terms = renderToStaticMarkup(createElement(PublicLegalPage, { document: "termsOfService" }));
   assert.match(terms, /Terms of service/u);
@@ -189,6 +189,9 @@ for (const file of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'so
 assert.match(await readFile(resolve(dist, 'robots.txt'), 'utf8'), /Disallow: \//u);
 const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
 assert.equal((sitemap.match(/<loc>/gu) || []).length, 3);
+assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/coding-interview/u);
+assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/aws-solutions-architect-associate/u);
+assert.doesNotMatch(sitemap, /privacy|terms/u, 'UNAPPROVED test legal must not be advertised in the sitemap.');
 assert.doesNotMatch(sitemap, /admin|privacy-request/u);
 assert.match(await readFile(resolve(dist, '404.html'), 'utf8'), /name="robots" content="noindex"/u);
 process.stdout.write('Prerendered HTML, metadata, static assets and indexing boundaries passed.\n');

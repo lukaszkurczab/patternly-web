@@ -35,7 +35,7 @@ test("built public site displays and resets the canonical demo at desktop and na
   let zoomContext;
   let zoomProfile;
   try {
-    browser = await chromium.launch({ headless: true, channel: "chrome" });
+    browser = await chromium.launch({ headless: true, ...(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH } : { channel: "chrome" }) });
     const page = await browser.newPage();
     const errors = [];
     const externalRequests = [];
@@ -65,7 +65,7 @@ test("built public site displays and resets the canonical demo at desktop and na
       assert.equal(await page.getByRole("radio").count(), 4);
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
-      assert.equal(await page.getByText("Patternly is coming to the App Store. Download is not available yet.", { exact: true }).count(), 1);
+      assert.equal(await page.getByText("Android is planned first; iOS will follow. Neither app is available to download yet.", { exact: true }).count(), 2);
       assert.ok(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `Demo panel overflows at width ${width}`);
       const screenshot = async (state) => {
         assert.ok(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), `Demo panel overflows in ${state} at width ${width}`);
@@ -76,7 +76,7 @@ test("built public site displays and resets the canonical demo at desktop and na
       };
       await screenshot("neutral");
       // Reach the native radio through the page's real tab order, without focus injection.
-      for (let step = 0; step < 25; step += 1) {
+      for (let step = 0; step < 64; step += 1) {
         await page.keyboard.press("Tab");
         if (await page.evaluate(() => document.activeElement?.matches("#session input[type=radio]"))) break;
       }
@@ -114,7 +114,7 @@ test("built public site displays and resets the canonical demo at desktop and na
       await page.keyboard.press("Space");
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
       assert.equal(await page.locator("#session-details").count(), 0);
-      for (let step = 0; step < 25; step += 1) {
+      for (let step = 0; step < 64; step += 1) {
         await page.keyboard.press("Tab");
         if (await page.evaluate(() => document.activeElement?.matches("#session input[type=radio]"))) break;
       }
@@ -195,7 +195,7 @@ test("built public site displays and resets the canonical demo at desktop and na
     zoomProfile = await mkdtemp(join(tmpdir(), "patternly-demo-zoom-"));
     await mkdir(join(zoomProfile, "Default"));
     await writeFile(join(zoomProfile, "Default/Preferences"), JSON.stringify({ partition: { default_zoom_level: { x: Math.log(2) / Math.log(1.2) } } }));
-    zoomContext = await chromium.launchPersistentContext(zoomProfile, { headless: true, channel: "chrome", viewport: null, args: ["--window-size=1440,3600"] });
+    zoomContext = await chromium.launchPersistentContext(zoomProfile, { headless: true, ...(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH } : { channel: "chrome" }), viewport: null, args: ["--window-size=1440,3600"] });
     const zoomPage = zoomContext.pages()[0];
     zoomPage.on("pageerror", (error) => errors.push(error.message));
     observePublicRequests(zoomPage);
@@ -204,16 +204,17 @@ test("built public site displays and resets the canonical demo at desktop and na
     await zoomPage.evaluate(() => document.fonts.ready);
     const cdp = await zoomContext.newCDPSession(zoomPage);
     const metrics = await cdp.send("Page.getLayoutMetrics");
-    assert.equal(metrics.cssVisualViewport.zoom, 2, "Chrome actually applies 200% page zoom.");
+    assert.equal(metrics.cssVisualViewport.zoom, 2, "The selected browser actually applies 200% page zoom.");
     assert.equal(metrics.cssVisualViewport.scale, 1, "Pinch/page scale is not substituted for browser zoom.");
-    assert.equal(await zoomPage.evaluate(() => outerWidth / innerWidth), 2, "Layout reflows at half the physical window width.");
+    // Opera includes its sidebar in outerWidth; compare the content viewport instead.
+    assert.equal(metrics.layoutViewport.clientWidth / metrics.cssLayoutViewport.clientWidth, 2, "Layout reflows at half the physical content viewport width.");
     const zoomPanel = zoomPage.locator("#session");
     await zoomPanel.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
     await zoomPage.waitForFunction(() => {
       const reveal = document.querySelector("#session").closest(".reveal");
       return !reveal || (reveal.classList.contains("is-visible") && !reveal.inert && Number(getComputedStyle(reveal).opacity) >= 0.999);
     });
-    for (let step = 0; step < 25; step += 1) {
+    for (let step = 0; step < 64; step += 1) {
       await zoomPage.keyboard.press("Tab");
       if (await zoomPage.evaluate(() => document.activeElement?.matches("#session input[type=radio]"))) break;
     }

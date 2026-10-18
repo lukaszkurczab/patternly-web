@@ -1,3 +1,4 @@
+import { AppAvailability } from "./AppAvailability";
 import { useClientReady } from "../hooks/useClientReady";
 import { useState } from "react";
 
@@ -58,7 +59,7 @@ export function InteractiveQuestion({ demo, trackLabel, progressNote, titleRef }
         </button>
         {submitted && <span className="practice-status" aria-live="polite">{isCorrect ? "Correct — well done" : "Not quite — take another look"}</span>}
       </div>
-      {submitted && <p className="practice-note">Patternly is coming to the App Store. Download is not available yet.</p>}
+      {submitted && <AppAvailability className="practice-note" />}
       <p className="practice-note">{progressNote}</p>
     </section>
   );

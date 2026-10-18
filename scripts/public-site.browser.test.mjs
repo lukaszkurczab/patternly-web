@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { assertBasicTextContrast } from './basic-text-contrast.mjs';
 import test from 'node:test';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
 import { createAppProducedPublicLegalTestArtifact } from './publicLegalTestArtifact.mjs';
 import { publicSitePlugin } from './public-site.mjs';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -44,6 +45,41 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
       await page.waitForFunction(() => document.querySelector('#session input')?.disabled === false);
       await page.evaluate(() => document.fonts.ready);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow at ${width}: ${JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("body *")].filter(el => el.getBoundingClientRect().right > innerWidth + 1).slice(0, 10).map(el => [el.className, el.getBoundingClientRect().right])))}`);
+      assert.equal(await page.locator('[data-app-availability]').count(), 2);
+      assert.deepEqual(await page.locator('[data-app-availability]').allTextContents(), [
+        'Android is planned first; iOS will follow. Neither app is available to download yet.',
+        'Android is planned first; iOS will follow. Neither app is available to download yet.',
+      ]);
+      assert.equal(await page.locator('a[href*="apps.apple.com"], a[href*="play.google.com"]').count(), 0);
+      await page.locator('.app-previews').scrollIntoViewIfNeeded();
+      for (const previewImage of await page.locator('.app-previews img').all()) {
+        await previewImage.scrollIntoViewIfNeeded();
+        await previewImage.evaluate((element) => element.decode());
+        assert.equal(await previewImage.evaluate((element) => element.naturalWidth), 1206);
+        assert.ok(await previewImage.getAttribute('alt'));
+      }
+      if (width === 390) {
+        const contrast = await assertBasicTextContrast(page, ['.hero h1', '.practice-note', '.practice-option label', '#help summary', 'footer a']);
+        if (process.env.PATTERNLY_CONTRAST_RECEIPT_PATH) await writeFile(process.env.PATTERNLY_CONTRAST_RECEIPT_PATH, JSON.stringify({ mode: 'local-test', browserVersion: await browser.version(), scope: 'bounded computed text colors, conservative gradient bounds; not full WCAG', contrast }, null, 2));
+      }
+    const help = page.locator('#help details').last();
+      await help.locator('summary').focus();
+      await page.keyboard.press('Enter');
+      assert.equal(await help.getAttribute('open'), '');
+      const contact = help.getByRole('link', { name: 'Email the Patternly operator' });
+      assert.equal(await contact.getAttribute('href'), `mailto:${encodeURIComponent(artifact.publicProfile.operator.email.en)}`);
+      await page.keyboard.press('Tab');
+      assert.equal(await contact.evaluate((element) => document.activeElement === element), true);
+      assert.equal(await help.getByRole('link', { name: 'Support information' }).getAttribute('href'), artifact.publicLinks.supportUrl);
+      if (process.env.PATTERNLY_PUBLIC_SCREENSHOT_DIR && [390, 1440].includes(width)) {
+        await mkdir(process.env.PATTERNLY_PUBLIC_SCREENSHOT_DIR, { recursive: true });
+        await contact.evaluate((element) => element.blur());
+        for (const section of ['help', 'app']) {
+          await page.evaluate((id) => { document.getElementById(id).scrollIntoView({ behavior: 'instant' }); }, section);
+          await page.screenshot({ path: join(process.env.PATTERNLY_PUBLIC_SCREENSHOT_DIR, `${width}-${section}.png`) });
+        }
+      }
+      await help.locator('summary').click();
       assert.ok(await page.locator('.nav-action').isVisible());
       await page.locator('.nav-action').click();
       await page.waitForFunction(() => Math.abs(document.querySelector('#session').getBoundingClientRect().top) < innerHeight);
@@ -58,6 +94,7 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
       await page.goto(base + route);
       await page.locator('select:not(:disabled)').waitFor();
       await page.locator('select').selectOption('pl');
+      await page.waitForURL('**/pl/*');
       await page.waitForFunction(() => document.documentElement.lang === 'pl');
       assert.ok(await page.locator('h1').textContent());
     }
@@ -67,6 +104,8 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
     await page.waitForFunction(() => Math.abs(document.querySelector('#support').getBoundingClientRect().top) < innerHeight);
     assert.ok(await page.locator('#support').evaluate((element) => Math.abs(element.getBoundingClientRect().top) < innerHeight), 'Support fragment scrolls after hydration');
     await page.locator('select').selectOption('pl');
+    await page.waitForURL('**/pl/terms#support');
+    await page.locator('select:not(:disabled)').waitFor();
     assert.equal(await page.locator('#support').count(), 1);
     assert.match(await page.locator('#support').textContent(), /^16\./u);
     await context.close();
@@ -75,6 +114,10 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
     await staticPage.goto(base);
     assert.ok(await staticPage.locator('h1').isVisible());
     assert.ok(await staticPage.locator('#tracks h2').isVisible());
+    await staticPage.locator('#help details').last().locator('summary').click();
+    assert.ok(await staticPage.getByRole('link', { name: 'Email the Patternly operator' }).isVisible());
+    assert.ok(await staticPage.locator('#app h2').isVisible());
+    assert.ok(await staticPage.locator('.app-previews img').count() > 0);
     assert.equal(await staticPage.locator('#tracks .reveal').first().evaluate((element) => getComputedStyle(element).opacity), '1');
     assert.ok(await staticPage.locator('.no-script-nav a').first().isVisible());
     assert.equal(await staticPage.locator('#session input:enabled').count(), 0);
@@ -154,14 +197,14 @@ test('visible reveal content stays exposed to keyboard and accessibility before 
       visibleClass: element.classList.contains('is-visible'),
     }));
     assert.deepEqual(await inspectReveal(), { ariaHidden: null, inert: false, buttonTabIndex: null, visibleClass: false });
-    assert.equal(await accessibleHeading.count(), 1, 'Chrome role lookup exposes the visible heading before intersection');
+    assert.equal(await accessibleHeading.count(), 1, 'Browser role lookup exposes the visible heading before intersection');
 
     const cdp = await context.newCDPSession(page);
     const headingIsInAxTree = async () => {
       const { nodes } = await cdp.send('Accessibility.getFullAXTree');
       return nodes.some((node) => node.ignored === false && node.role?.value === 'heading' && node.name?.value === 'Coding Interview: DSA & Problem Solving');
     };
-    assert.equal(await headingIsInAxTree(), true, 'Chrome AX tree exposes the visible heading before intersection');
+    assert.equal(await headingIsInAxTree(), true, 'Browser AX tree exposes the visible heading before intersection');
 
     const focusByKeyboard = async () => {
       await page.evaluate(() => document.activeElement?.blur?.());
@@ -178,7 +221,7 @@ test('visible reveal content stays exposed to keyboard and accessibility before 
     await page.waitForFunction(() => document.querySelector('#tracks .track-atlas')?.classList.contains('is-visible'));
     assert.deepEqual(await inspectReveal(), { ariaHidden: null, inert: false, buttonTabIndex: null, visibleClass: true });
     assert.equal(await accessibleHeading.count(), 1);
-    assert.equal(await headingIsInAxTree(), true, 'Chrome AX tree still exposes the heading after intersection');
+    assert.equal(await headingIsInAxTree(), true, 'Browser AX tree still exposes the heading after intersection');
 
     assert.equal(await focusByKeyboard(), true, 'Tab still reaches the demo button after intersection');
     await page.keyboard.press('Enter');

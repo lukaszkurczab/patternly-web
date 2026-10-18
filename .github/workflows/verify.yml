@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/gcp-ace-trainer
-          ref: 3911c7c0882299ca2d5217c26a67ff24bb574af0
+          ref: 710b816d38934f5c10ae71b5e5f9dbeb68f9cbe7
           path: patternly
           fetch-depth: 0
           persist-credentials: false

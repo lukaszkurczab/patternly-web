@@ -1,0 +1,48 @@
+{
+  "capturedOn": "2026-10-17",
+  "platform": "iOS development simulator",
+  "device": "iPhone 17",
+  "appSourceRevision": "45d3984a",
+  "profile": "fictional local Auth/Firestore account",
+  "premiumSource": "local backend smoke entitlement reader; no purchase or provider verification",
+  "syntheticProgressFixture": {
+    "tool": "patternly-backend/scripts/qa/local-web-preview-profile.ts",
+    "command": "npx tsx scripts/qa/local-web-preview-profile.ts verify",
+    "sourceArtifactSha256": "73178e6205688aae2e830975fc0fa7eb78197b8f291b0cae0046300f7156b173",
+    "firestoreCatalogAttestation": false,
+    "verifiedLocalRecords": 12,
+    "completedSessions": 1,
+    "correctAnswers": 7,
+    "totalAnswers": 10
+  },
+  "captureMethod": "Unmodified simctl screenshots of normal app screens",
+  "releaseStatus": "Local presentation evidence only. Include these samples in 10C content admission and exact candidate review.",
+  "images": [
+    {
+      "path": "public/app-preview/today-ios.png",
+      "sha256": "3465c302e554765b20b904294f6537f52b99279f0a828936fb19a56b129c63f2",
+      "width": 1206,
+      "height": 2622,
+      "screen": "Today overview after the synthetic cloud profile hydrated",
+      "publicSampleNote": "Ten recorded answers are synthetic fixture data. Contains no question text. No goal or learning plan was fabricated."
+    },
+    {
+      "path": "public/app-preview/topics-ios.png",
+      "sha256": "4cbb0f45e3f6abdcf0568468985a182dfb5704a8de8343b4bcc15bef6ddbfbad",
+      "width": 1206,
+      "height": 2622,
+      "screen": "Practice topic and mode selection",
+      "publicSampleNote": "Contains no question text. The Premium badge labels a mode; it is not evidence of a purchase."
+    },
+    {
+      "path": "public/app-preview/practice-ios.png",
+      "sha256": "74ce19371744d8c27048dc9c32f9ce1aaceeb99aefb67aa5bca16b4b93baffbb",
+      "width": 1206,
+      "height": 2622,
+      "screen": "Custom Practice answer feedback",
+      "questionId": "alg-complexity-amortized-001",
+      "nodeId": "complexity_and_constraints",
+      "publicSampleNote": "Third public Free sample, in addition to the two interactive demo questions. No other question screenshot may be added without reassessing the sample limit."
+    }
+  ]
+}
