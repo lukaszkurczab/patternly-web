@@ -1,11 +1,67 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validatePublicLegalArtifact } from "../src/publicLegalArtifact.js";
+import { createHash } from "node:crypto";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadPublicLegalArtifact, validatePublicLegalArtifact } from "../src/publicLegalArtifact.js";
 import { availablePublicLegalLocales } from "../src/publicLegalLocales.js";
 import { addSyntheticPublicLegalLocales, createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const fixture = createAppProducedPublicLegalTestArtifact();
 const expectedFingerprint = fixture.sourceFingerprint;
+
+function productionContractFixture() {
+  // Contract fixture only: no legal approval or publishable output is created.
+  const copy = addSyntheticPublicLegalLocales(fixture, ["de", "fr", "es", "it", "et"]);
+  copy.testOnly = false;
+  copy.approvalStatus = "APPROVED";
+  return copy;
+}
+
+test("production requires all seven locales in every localized field", () => {
+  const complete = productionContractFixture();
+  assert.equal(validatePublicLegalArtifact(complete, { expectedFingerprint }), complete);
+  for (const locale of ["en", "pl", "de", "fr", "es", "it", "et"]) {
+    for (const field of [complete.documentVersion, ...Object.values(complete.publicProfile).flatMap(Object.values), ...Object.values(complete.documents)]) {
+      const original = field[locale];
+      delete field[locale];
+      assert.throws(() => validatePublicLegalArtifact(complete, { expectedFingerprint }), /invalid field/u);
+      field[locale] = original;
+    }
+  }
+  const unresolved = structuredClone(complete);
+  unresolved.documents.privacyPolicy.fr += "\n[UNRESOLVED: privacy.processingRegisterDisclosure]";
+  assert.throws(() => validatePublicLegalArtifact(unresolved, { expectedFingerprint }), /unresolved content/u);
+  for (const approvalStatus of [undefined, null, "UNAPPROVED", "approved", true]) {
+    assert.throws(() => validatePublicLegalArtifact({ ...complete, approvalStatus }, { expectedFingerprint }), /explicitly approved/u);
+  }
+  assert.throws(() => validatePublicLegalArtifact(complete, { expectedFingerprint, mode: "unknown" }), /Unsupported/u);
+});
+
+test("production pins exact export bytes even when the source fingerprint stays unchanged", () => {
+  const directory = mkdtempSync(join(tmpdir(), "patternly-export-bytes-"));
+  const artifactPath = join(directory, "legal.json");
+  const complete = productionContractFixture();
+  const bytes = `${JSON.stringify(complete, null, 2)}\n`;
+  const environment = {
+    PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH: artifactPath,
+    PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT: expectedFingerprint,
+    PATTERNLY_PUBLIC_LEGAL_EXPECTED_ARTIFACT_SHA256: createHash("sha256").update(bytes).digest("hex"),
+  };
+  try {
+    writeFileSync(artifactPath, bytes);
+    assert.deepEqual(loadPublicLegalArtifact(environment), complete);
+    assert.throws(() => loadPublicLegalArtifact({ ...environment, PATTERNLY_PUBLIC_LEGAL_EXPECTED_ARTIFACT_SHA256: undefined }), /EXPECTED_ARTIFACT_SHA256/u);
+    complete.documents.termsOfService.en += "\nChanged template prose with identical source variables.";
+    writeFileSync(artifactPath, `${JSON.stringify(complete, null, 2)}\n`);
+    assert.throws(() => loadPublicLegalArtifact(environment), /export bytes do not match/u);
+    writeFileSync(artifactPath, JSON.stringify(productionContractFixture()));
+    assert.throws(() => loadPublicLegalArtifact(environment), /export bytes do not match/u);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("accepts the marked local fixture only in local test mode", () => {
   assert.equal(validatePublicLegalArtifact(fixture, { expectedFingerprint, mode: "local-test" }), fixture);

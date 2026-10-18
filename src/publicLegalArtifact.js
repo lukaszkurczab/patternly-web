@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const FINGERPRINT = /^[0-9a-f]{64}$/u;
 const SCHEMA_VERSION = "patternly-public-legal-export-v1";
 const REQUIRED_LOCALES = ["en", "pl"];
+const PRODUCTION_LOCALES = ["en", "pl", "de", "fr", "es", "it", "et"];
 const LOCALIZED_PROFILE_FIELDS = ["legalName", "businessForm", "address", "email", "phone", "registrationNumber", "taxIdentifier"];
 
 function isRecord(value) {
@@ -38,6 +40,9 @@ function requireLegalPageUrl(value, field, expectedPath) {
 }
 
 export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mode = "production" } = {}) {
+  if (!["production", "local-test", "contract-test"].includes(mode)) {
+    throw new Error("Unsupported public legal validation mode.");
+  }
   if (!isRecord(artifact) || artifact.schemaVersion !== SCHEMA_VERSION) {
     throw new Error("Public legal artifact has an unsupported schema.");
   }
@@ -53,7 +58,11 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
   if (!isRecord(artifact.documentVersion)) {
     throw new Error("Public legal artifact has an invalid document version.");
   }
-  for (const locale of REQUIRED_LOCALES) requireText(artifact.documentVersion[locale], `documentVersion.${locale}`);
+  const requiredLocales = mode === "production" ? PRODUCTION_LOCALES : REQUIRED_LOCALES;
+  for (const locale of requiredLocales) requireText(artifact.documentVersion[locale], `documentVersion.${locale}`);
+  if (mode === "production" && artifact.approvalStatus !== "APPROVED") {
+    throw new Error("Production builds require explicitly approved public legal documents.");
+  }
   if (typeof artifact.sourceFingerprint !== "string" || !FINGERPRINT.test(artifact.sourceFingerprint)) {
     throw new Error("Public legal artifact has an invalid source fingerprint.");
   }
@@ -70,7 +79,7 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
     for (const field of LOCALIZED_PROFILE_FIELDS) {
       const localized = profile[field];
       if (!isRecord(localized)) throw new Error(`Public legal artifact is missing publicProfile.${profileName}.${field}.`);
-      for (const locale of REQUIRED_LOCALES) requireText(localized[locale], `publicProfile.${profileName}.${field}.${locale}`);
+      for (const locale of requiredLocales) requireText(localized[locale], `publicProfile.${profileName}.${field}.${locale}`);
     }
   }
   requireLegalPageUrl(artifact.publicLinks?.privacyUrl, "publicLinks.privacyUrl", "/privacy");
@@ -79,7 +88,12 @@ export function validatePublicLegalArtifact(artifact, { expectedFingerprint, mod
   for (const document of ["privacyPolicy", "termsOfService"]) {
     const localized = artifact.documents?.[document];
     if (!isRecord(localized)) throw new Error(`Public legal artifact is missing documents.${document}.`);
-    for (const locale of REQUIRED_LOCALES) requireText(localized[locale], `documents.${document}.${locale}`);
+    for (const locale of requiredLocales) {
+      requireText(localized[locale], `documents.${document}.${locale}`);
+      if (mode === "production" && /\[(?:TO BE COMPLETED|DO UZUPEŁNIENIA|UNAPPROVED|UNRESOLVED)\b/u.test(localized[locale])) {
+        throw new Error(`Public legal artifact contains unresolved content (documents.${document}.${locale}).`);
+      }
+    }
   }
   return artifact;
 }
@@ -93,13 +107,25 @@ export function loadPublicLegalArtifact(environment = process.env, mode = "produ
     throw new Error("PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH is required for every build.");
   }
   let artifact;
+  let bytes;
   try {
-    artifact = JSON.parse(readFileSync(resolve(artifactPath), "utf8"));
+    bytes = readFileSync(resolve(artifactPath));
+    artifact = JSON.parse(bytes.toString("utf8"));
   } catch {
     throw new Error("Public legal artifact is missing or malformed.");
   }
-  return validatePublicLegalArtifact(artifact, {
+  const validated = validatePublicLegalArtifact(artifact, {
     expectedFingerprint: environment.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT,
     mode,
   });
+  if (mode === "production") {
+    const expectedArtifactSha256 = environment.PATTERNLY_PUBLIC_LEGAL_EXPECTED_ARTIFACT_SHA256;
+    if (typeof expectedArtifactSha256 !== "string" || !FINGERPRINT.test(expectedArtifactSha256)) {
+      throw new Error("PATTERNLY_PUBLIC_LEGAL_EXPECTED_ARTIFACT_SHA256 must identify the independently reviewed export bytes.");
+    }
+    if (createHash("sha256").update(bytes).digest("hex") !== expectedArtifactSha256) {
+      throw new Error("Public legal export bytes do not match PATTERNLY_PUBLIC_LEGAL_EXPECTED_ARTIFACT_SHA256.");
+    }
+  }
+  return validated;
 }

@@ -16,7 +16,22 @@ function syntheticValue(value, path = "legal") {
 }
 
 export function createAppProducedPublicLegalTestArtifact() {
-  const source = syntheticValue(releaseSource);
+  // This is a separate synthetic EN/PL fixture, not a projection accepted by
+  // production. The app's test helper expands its other locales as unapproved.
+  // Approval metadata belongs only to the canonical release source.
+  const synthetic = syntheticValue(releaseSource);
+  const source = {
+    documentVersion: synthetic.documentVersion,
+    premiumCheckoutEnabled: false,
+    terms: synthetic.terms,
+    privacy: synthetic.privacy,
+    publicLinks: synthetic.publicLinks,
+  };
+  for (const section of ["terms", "privacy"]) {
+    for (const [key, localized] of Object.entries(source[section])) {
+      source[section][key] = { en: localized.en, pl: localized.pl };
+    }
+  }
   source.documentVersion = { en: "test-2026-09-24", pl: "test-2026-09-24" };
   source.publicLinks = {
     privacyUrl: "https://patternly.example/privacy",
