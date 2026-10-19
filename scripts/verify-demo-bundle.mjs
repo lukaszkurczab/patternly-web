@@ -17,7 +17,9 @@ assert.deepEqual(catalog.publicSamples.map((sample) => [sample.presentation, sam
 for (const sample of catalog.publicSamples) {
   assert.ok(!Object.hasOwn(sample, "question"), "Sample admission inventory carries metadata only.");
   assert.equal(sample.candidateId, catalog.demos[0].provenance.candidateId);
-  assert.match(sample.admissionAppCommit, /^[a-f0-9]{40}$/u);
+  assert.equal(sample.admissionPath, "patternly-content/config/current-admission.json");
+  assert.match(sample.admissionSha256, /^[a-f0-9]{64}$/u);
+  assert.equal(sample.releaseId, catalog.demos[0].provenance.releaseId);
 }
 const imageSample = catalog.publicSamples.find((sample) => sample.presentation === "image");
 const preview = JSON.parse(await readFile(resolve(root, "scripts/app-preview-manifest.json"), "utf8"));

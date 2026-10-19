@@ -40,7 +40,6 @@ const legal = createAppProducedPublicLegalTestArtifact();
 const demo = JSON.parse(readFileSync(resolve(root, 'src/generated/demoQuestions.json')));
 const appRoot = resolve(root, '../patternly');
 const contentRoot = resolve(root, '../patternly-content');
-const admission = JSON.parse(readFileSync(resolve(contentRoot, 'evidence/admissions/candidate-admission-v3.json')));
 const receipt = {
   mode: 'local-test', deployable: false, testOnly: true,
   recordedAt: new Date().toISOString(),
@@ -51,14 +50,13 @@ const receipt = {
   web: sources(root),
   app: sources(appRoot, ['src', 'scripts', 'integration', 'config', 'native', 'plugins', 'package.json', 'package-lock.json', 'app.config.js', 'eas.json']),
   content: { head: git(contentRoot, ['rev-parse', 'HEAD']).trim(), files: [
-    'package.json', 'package-lock.json', 'scripts/review/candidate-admission-v3.mjs', 'scripts/review/candidate-manifest.mjs',
-    'evidence/admissions/candidate-admission-v3.json', admission.candidatePath, admission.release.releasePath, admission.runtimeEvidence.path,
+    'package.json', 'package-lock.json', 'scripts/content/current-admission.mjs', 'config/current-admission.json',
     ...demo.publicSamples.map((sample) => sample.sourcePath),
   ].filter((path, index, all) => all.indexOf(path) === index).map((path) => file(contentRoot, path)) },
   legal: { documentVersion: legal.documentVersion, sourceFingerprint: legal.sourceFingerprint, approvalStatus: legal.approvalStatus, artifactSha256: hash(Buffer.from(JSON.stringify(legal))) },
   publicSamples: demo.publicSamples,
   manifest,
-  limitations: ['R01 unresolved; no approved production legal artifact or independent production fingerprint.', 'Dirty APP/WEB are recorded, not hidden or approved as clean release pins.', 'Admission receipt is provenance at its APP commit; current selected-source and Free-pool checks establish only the public sample scope.', 'No production build, production mobile performance measurement, publish or live R02 acceptance.'],
+  limitations: ['R01 unresolved; no approved production legal artifact or independent production fingerprint.', 'Dirty APP/WEB are recorded, not hidden or approved as clean release pins.', 'The current admission binds the frozen release identity and active runtime override; selected-source and Free-pool checks establish only the public sample scope.', 'No production build, production mobile performance measurement, publish or live R02 acceptance.'],
 };
 writeFileSync(resolve(outputPath), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
 process.stdout.write(`${JSON.stringify({ path: resolve(outputPath), mode: receipt.mode, deployable: false, files: manifest.length, sha256: hash(readFileSync(resolve(outputPath))) })}\n`);
