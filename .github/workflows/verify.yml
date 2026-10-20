@@ -22,22 +22,22 @@ jobs:
           path: patternly-web
           persist-credentials: false
 
-      # Existing exporters import ../patternly and read historical APP/CONTENT
-      # receipts via git show. Keep real sibling paths and their full history.
+      # Current-source exporter uses sibling APP/CONTENT. APP history also binds
+      # the selected screenshot question to the unchanged historical capture.
       - name: Checkout pinned app producer and runtime
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/gcp-ace-trainer
-          ref: 710b816d38934f5c10ae71b5e5f9dbeb68f9cbe7
+          ref: ea48ed1600580ebd8041ce81d4c49241b60dcc7f
           path: patternly
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout pinned content history
+      - name: Checkout pinned current content
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/patternly-content
-          ref: 420cdf237e6ca8f1d4cf84c3d70e38ba7896f292
+          ref: 45f5028ab1d0ef7a2c78d531140b093ba9a7a525
           path: patternly-content
           fetch-depth: 0
           persist-credentials: false
@@ -56,6 +56,20 @@ jobs:
 
       - name: Install web dependencies
         run: npm ci
+
+      - name: Report actual repository inputs
+        run: |
+          git rev-parse HEAD
+          git -C ../patternly rev-parse HEAD
+          git -C ../patternly-content rev-parse HEAD
+          git status --short
+          git -C ../patternly status --short
+          git -C ../patternly-content status --short
+
+      - name: Verify current-source demo contract
+        run: |
+          node scripts/check-canonical-demo.mjs
+          node --test scripts/current-demo-contract.test.mjs
 
       - name: Install browsers used by existing tests
         run: npx playwright install --with-deps chrome chromium

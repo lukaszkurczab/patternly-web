@@ -1,3 +1,4 @@
+import { verifyCurrentDemoCatalog, verifyCaptureQuestion } from "./current-demo-contract.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
@@ -5,7 +6,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const catalog = JSON.parse(await readFile(resolve(root, "src/generated/demoQuestions.json"), "utf8"));
+const catalog = verifyCurrentDemoCatalog();
+verifyCaptureQuestion(catalog);
 assert.equal(catalog.schemaVersion, "patternly-canonical-demo-questions-v1");
 assert.deepEqual(catalog.demos.map((demo) => demo.provenance.questionId), ["alg-complexity-time-005", "aws-saa-c03-architecture-001-odk096"]);
 assert.equal(catalog.demos.length, 2, "The public payload contains exactly the bounded Coding and AWS examples.");
@@ -15,15 +17,14 @@ assert.deepEqual(catalog.publicSamples.map((sample) => [sample.presentation, sam
   ["image", "alg-complexity-amortized-001"],
 ]);
 for (const sample of catalog.publicSamples) {
-  assert.ok(!Object.hasOwn(sample, "question"), "Sample admission inventory carries metadata only.");
-  assert.equal(sample.candidateId, catalog.demos[0].provenance.candidateId);
-  assert.equal(sample.admissionPath, "patternly-content/config/current-admission.json");
-  assert.match(sample.admissionSha256, /^[a-f0-9]{64}$/u);
+  assert.ok(!Object.hasOwn(sample, "question"), "Sample inventory carries metadata only.");
+  assert.equal(sample.sourceInputFingerprint, catalog.demos[0].provenance.sourceInputFingerprint);
+  assert.match(sample.sourceInputFingerprint, /^[a-f0-9]{64}$/u);
   assert.equal(sample.releaseId, catalog.demos[0].provenance.releaseId);
 }
 const imageSample = catalog.publicSamples.find((sample) => sample.presentation === "image");
 const preview = JSON.parse(await readFile(resolve(root, "scripts/app-preview-manifest.json"), "utf8"));
-assert.equal(preview.syntheticProgressFixture.sourceArtifactSha256, imageSample.artifactSha256);
+// The capture bank is historical; selected-question equality is checked above.
 assert.deepEqual((await readdir(resolve(root, "dist/app-preview"))).sort(), preview.images.map((image) => image.path.split("/").at(-1)).sort());
 for (const image of preview.images) {
   const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -52,4 +53,4 @@ assert.ok(!bundles.includes("What does an amortized O(1) operation guarantee?"),
 for (const staleText of ["For this PostgreSQL query, which B-tree index key order is the best match?", "(order_date, customer_id)", "(customer_id, status, order_date)"]) assert.ok(!bundles.includes(staleText), `Stale manually maintained SQL demo remains in the public bundle: ${staleText}`);
 assert.doesNotMatch(bundles, /gcp-ace-gcpace-n01-b02-001|az104-AZ104-N01-B01-001|AI901-N01-B01-Q001/u, "Unselected Certification examples are not included in the bounded payload.");
 assert.doesNotMatch(bundles, /patternly-canonical-demo-question-bank|questionBank/u, "No whole question bank enters the public build.");
-process.stdout.write("Public sample admission covers two interactive questions and the pinned third image; the bundle contains only the two selected question payloads; display-only Details copies are explicitly accounted for and the former SQL demo is absent.\n");
+process.stdout.write("Current-source verification covers two interactive questions and the pinned third image; the bundle contains only the two selected question payloads; display-only Details copies are explicitly accounted for and the former SQL demo is absent.\n");

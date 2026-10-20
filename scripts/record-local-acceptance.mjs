@@ -1,3 +1,4 @@
+import { verifyCurrentDemoCatalog, verifyCaptureQuestion } from "./current-demo-contract.mjs";
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -34,12 +35,14 @@ const browserReceipt = JSON.parse(readFileSync(resolve(browserReceiptPath)));
 const manifest = tree(resolve(root, 'dist'));
 assert.equal(browserReceipt.result, 'PASS');
 assert.equal(browserReceipt.mode, 'local-test');
+assert.equal(browserReceipt.testOnly, true);
 assert.equal(browserReceipt.deployable, false);
 assert.deepEqual(manifest, browserReceipt.manifest, 'The tested build changed after the Opera crawl.');
 const legal = createAppProducedPublicLegalTestArtifact();
-const demo = JSON.parse(readFileSync(resolve(root, 'src/generated/demoQuestions.json')));
+const demo = verifyCurrentDemoCatalog();
+const capture = verifyCaptureQuestion(demo);
 const appRoot = resolve(root, '../patternly');
-const contentRoot = resolve(root, '../patternly-content');
+const contentRoot = resolve(process.env.PATTERNLY_CONTENT_CURRENT_ROOT ?? resolve(root, '../patternly-content'));
 const receipt = {
   mode: 'local-test', deployable: false, testOnly: true,
   recordedAt: new Date().toISOString(),
@@ -49,14 +52,14 @@ const receipt = {
   installedWebPackages: Object.fromEntries(['vite', 'playwright', 'react', 'react-dom'].map((name) => [name, JSON.parse(readFileSync(resolve(root, 'node_modules', name, 'package.json'))).version])),
   web: sources(root),
   app: sources(appRoot, ['src', 'scripts', 'integration', 'config', 'native', 'plugins', 'package.json', 'package-lock.json', 'app.config.js', 'eas.json']),
-  content: { head: git(contentRoot, ['rev-parse', 'HEAD']).trim(), files: [
-    'package.json', 'package-lock.json', 'scripts/content/current-admission.mjs', 'config/current-admission.json',
-    ...demo.publicSamples.map((sample) => sample.sourcePath),
-  ].filter((path, index, all) => all.indexOf(path) === index).map((path) => file(contentRoot, path)) },
+  content: sources(contentRoot, ['content', 'config', 'scripts', 'package.json', 'package-lock.json']),
   legal: { documentVersion: legal.documentVersion, sourceFingerprint: legal.sourceFingerprint, approvalStatus: legal.approvalStatus, artifactSha256: hash(Buffer.from(JSON.stringify(legal))) },
+  currentSource: { sourceInputFingerprint: demo.publicSamples[0].sourceInputFingerprint, releaseId: demo.publicSamples[0].releaseId,
+    identity: JSON.parse(readFileSync(resolve(appRoot, 'integration/contracts/content-release/release.lock.json'))).currentIdentity },
+  capture,
   publicSamples: demo.publicSamples,
   manifest,
-  limitations: ['R01 unresolved; no approved production legal artifact or independent production fingerprint.', 'Dirty APP/WEB are recorded, not hidden or approved as clean release pins.', 'The current admission binds the frozen release identity and active runtime override; selected-source and Free-pool checks establish only the public sample scope.', 'No production build, production mobile performance measurement, publish or live R02 acceptance.'],
+  limitations: ['R01 unresolved; no approved production legal artifact or independent production fingerprint.', 'Dirty APP/WEB are recorded, not hidden or approved as clean release pins.', 'Current-source identity is derived from validated inputs; exact selected-source, lock and Free-pool checks establish only the public sample scope.', 'No production build, production mobile performance measurement, publish or live R02 acceptance.'],
 };
 writeFileSync(resolve(outputPath), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
 process.stdout.write(`${JSON.stringify({ path: resolve(outputPath), mode: receipt.mode, deployable: false, files: manifest.length, sha256: hash(readFileSync(resolve(outputPath))) })}\n`);
