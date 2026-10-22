@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { preview } from 'vite';
 import { chromium } from 'playwright';
 import { loadPublicLegalArtifact } from '../src/publicLegalArtifact.js';
@@ -15,10 +16,32 @@ const remote = process.env.PATTERNLY_VERIFY_BASE_URL;
 const hosting = JSON.parse(await readFile('firebase.json', 'utf8'));
 const hostingOrigin = `https://${hosting.hosting.site}.web.app`;
 if (remote) assert.ok([publicOrigin, hostingOrigin].includes(remote), 'Remote verification requires the canonical domain or configured Firebase host.');
-const output = process.env.PATTERNLY_PRODUCTION_RECEIPT_DIR;
-assert.ok(output, 'PATTERNLY_PRODUCTION_RECEIPT_DIR must be a private evidence directory.');
+// This selector only reads an existing separate candidate; it never builds it.
+const explicitBuild = process.env.PATTERNLY_PRODUCTION_BUILD_DIR;
+const repository = realpathSync('.');
+const contains = (parent, child) => {
+  const path = relative(parent, child);
+  return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path));
+};
+function resolveThroughExistingAncestor(path) {
+  let ancestor = resolve(path);
+  const missing = [];
+  while (!existsSync(ancestor)) { missing.unshift(basename(ancestor)); ancestor = dirname(ancestor); }
+  return resolve(realpathSync(ancestor), ...missing);
+}
+let buildRoot;
+if (explicitBuild !== undefined) {
+  assert.ok(explicitBuild.trim(), 'Production build directory must be nonempty.');
+  assert.ok(!remote, 'A separate candidate cannot be combined with remote verification.');
+  buildRoot = realpathSync(explicitBuild);
+  assert.ok(statSync(buildRoot).isDirectory(), 'Production build directory must exist as a directory.');
+  assert.ok(!contains(repository, buildRoot) && !contains(buildRoot, repository), 'Production candidate must be outside the repository and cannot contain it.');
+} else buildRoot = realpathSync('dist');
+const outputSelector = process.env.PATTERNLY_PRODUCTION_RECEIPT_DIR;
+assert.ok(outputSelector?.trim(), 'PATTERNLY_PRODUCTION_RECEIPT_DIR must be a private evidence directory.');
+const output = resolveThroughExistingAncestor(outputSelector);
+assert.ok(!contains(buildRoot, output) && !contains(output, buildRoot), 'Evidence and production build directories must be disjoint.');
 assert.ok(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH, 'Supply the Opera executable path.');
-assert.ok(resolve(output) !== resolve('dist') && !resolve(output).startsWith(`${resolve('dist')}/`), 'Evidence cannot be published in dist.');
 await mkdir(output, { recursive: true });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 async function manifest(directory, prefix = '') {
@@ -34,15 +57,15 @@ async function manifest(directory, prefix = '') {
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
-const files = await manifest(resolve('dist'));
+const files = await manifest(buildRoot);
 const pages = publicPages(legal);
-const receipt = { mode: remote === publicOrigin ? 'remote-production' : remote ? 'firebase-hosting-production' : 'local-production', time: new Date().toISOString(), baseUrl: null,
+const receipt = { mode: remote === publicOrigin ? 'remote-production' : remote ? 'firebase-hosting-production' : 'local-production', time: new Date().toISOString(), baseUrl: null, buildRoot,
   sourceFingerprint: legal.sourceFingerprint, approvedDocumentsSha256: legal.approvedDocumentsSha256,
   files, pages: [], negativeRoutes: [], browserErrors: [] };
 let server;
 let browser;
 try {
-  if (!remote) server = await preview({ mode: 'production', preview: { host: '127.0.0.1', port: 0 } });
+  if (!remote) server = await preview({ mode: 'production', build: { outDir: buildRoot }, preview: { host: '127.0.0.1', port: 0 } });
   const base = remote ?? `http://127.0.0.1:${server.httpServer.address().port}`;
   receipt.baseUrl = base;
   if (remote === publicOrigin) {
@@ -107,7 +130,7 @@ try {
   await interactive.locator('select').selectOption('it');
   await interactive.waitForURL('**/it/privacy');
   assert.deepEqual(receipt.browserErrors, []);
-  assert.deepEqual(await manifest(resolve('dist')), files, 'Verification changed dist.');
+  assert.deepEqual(await manifest(buildRoot), files, 'Verification changed dist.');
   receipt.status = 'PASS';
 } catch (error) {
   receipt.status = 'FAIL';
