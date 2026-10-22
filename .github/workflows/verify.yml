@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/gcp-ace-trainer
-          ref: ea48ed1600580ebd8041ce81d4c49241b60dcc7f
+          ref: 6b1c23a5c829c4eb721c04db7414fd3d21d7b817
           path: patternly
           fetch-depth: 0
           persist-credentials: false
@@ -37,14 +37,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/patternly-content
-          ref: 45f5028ab1d0ef7a2c78d531140b093ba9a7a525
+          ref: 515522988ad20bb1a4508b2ad8d00873fa75cec2
           path: patternly-content
           fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.13.1
+          node-version: 22.22.3
           cache: npm
           cache-dependency-path: |
             patternly/package-lock.json

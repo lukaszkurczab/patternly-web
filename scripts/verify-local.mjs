@@ -9,7 +9,7 @@ import { createServer, preview } from "vite";
 import { addSyntheticPublicLegalLocales, createAppProducedPublicLegalTestArtifact } from "./publicLegalTestArtifact.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const dist = resolve(root, "dist");
+const dist = resolve(root, process.env.PATTERNLY_WEB_TEST_OUT_DIR ?? "dist");
 const legalArtifact = createAppProducedPublicLegalTestArtifact();
 const fixtureDirectory = await mkdtemp(resolve(tmpdir(), "patternly-public-legal-verify-"));
 const legalFixturePath = resolve(fixtureDirectory, "public-legal.json");
@@ -153,7 +153,7 @@ try {
   }
 } finally { await local.close(); }
 
-const publicPreview = await preview({ root, mode: "local-test", logLevel: "silent", preview: { host: "127.0.0.1", port: 0 } });
+const publicPreview = await preview({ root, mode: "local-test", build: { outDir: dist }, logLevel: "silent", preview: { host: "127.0.0.1", port: 0 } });
 try {
   const address = publicPreview.httpServer.address();
   const base = `http://127.0.0.1:${address.port}`;
@@ -188,9 +188,10 @@ for (const [file, heading] of [['index.html', 'Build '], ['privacy.html', 'Priva
 for (const file of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'social-preview.png', '404.html']) await readFile(resolve(dist, file));
 assert.match(await readFile(resolve(dist, 'robots.txt'), 'utf8'), /Disallow: \//u);
 const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
-assert.equal((sitemap.match(/<loc>/gu) || []).length, 3);
+assert.equal((sitemap.match(/<loc>/gu) || []).length, 4);
 assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/coding-interview/u);
 assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/aws-solutions-architect-associate/u);
+assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/claude-architecture-practice/u);
 assert.doesNotMatch(sitemap, /privacy|terms/u, 'UNAPPROVED test legal must not be advertised in the sitemap.');
 assert.doesNotMatch(sitemap, /admin|privacy-request/u);
 assert.match(await readFile(resolve(dist, '404.html'), 'utf8'), /name="robots" content="noindex"/u);

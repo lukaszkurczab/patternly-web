@@ -35,4 +35,20 @@ export const publicTrackPages = [
     ],
     next: { href: '/#aws-certified-solutions-architect-associate', label: 'Choose the AWS example', note: 'In the catalogue, select “Try an AWS question”, then answer and review its reasoning. No account is needed.' },
   },
+  {
+    trackId: 'claude-certified-architect-professional-certification',
+    path: '/tracks/claude-architecture-practice',
+    title: 'Claude architecture practice: explain your design decisions — Patternly',
+    description: 'Practise architecture decisions for Claude systems by tracing requirements, boundaries and tradeoffs, then reviewing why an answer holds and when it would change.',
+    heading: 'Claude architecture practice: explain a design decision',
+    introduction: 'For solution architects and technical leads who have worked with LLM systems and want to make their design reasoning more explicit. Use this guide to connect a scenario’s constraints to a decision you can explain and challenge.',
+    sections: [
+      { heading: 'Start from a system you can describe', paragraphs: ['Be comfortable describing an application’s users, data flow and failure boundaries. If a scenario introduces an unfamiliar mechanism, identify the missing knowledge before treating a familiar product name as the answer.'] },
+      { heading: 'What to practise', paragraphs: ['Patternly’s Claude track uses independent questions and explanations to practise solution architecture, context and model tradeoffs, secure integration, evaluation, governance and operational decisions. Its first complete Free topic is Solution Design and Architecture. Focus practice is the direct entry; review modes depend on eligible prior learning evidence. Other topics require Premium access. App downloads and purchases are not available yet.'] },
+      { heading: 'A method for your next architecture question', steps: ['State the outcome and the constraints. Separate a hard boundary from a preference.', 'Trace the actors, data and decisions across the system. Name where control, trust or state changes.', 'Compare two plausible approaches. Explain the condition that makes one preferable.', 'Before reading the explanation, record one reason your choice could be wrong.', 'Read Reason and Details. Write the decisive mechanism and one changed condition that would change your answer.', 'On the next question, check whether that mechanism still applies instead of reusing the previous answer.'], paragraphs: ['For example, compare letting a model propose a business action with letting it execute that action. If the action changes an important business record, state who authorises the change and how the application checks it. Then change the scenario to a read-only suggestion: explain which controls still matter and which decision changes. This is a reasoning exercise, not a claim that any single control makes a system safe.'] },
+      { heading: 'Keep the limits clear', paragraphs: ['A correct option is evidence about one response and does not establish certification readiness or practical system-building ability. Patternly’s material is independent and is not affiliated with or endorsed by Anthropic. This guide makes no claim about current external exam coverage or a predicted result.', 'There is no interactive Claude sample on this website. The public Coding and AWS examples illustrate the question-and-feedback format; they do not represent Claude content or save learning progress.'] },
+    ],
+    sources: [{ label: 'Claude documentation — Features overview', url: 'https://platform.claude.com/docs/en/build-with-claude/overview', note: 'Official documentation to check a mechanism before using it in a design.' }],
+    next: { href: '/#claude-certified-architect-professional-certification', label: 'Explore the Claude track', note: 'Read the track description in the catalogue and check current app availability. The website does not offer a Claude demo or an app download.' },
+  },
 ];

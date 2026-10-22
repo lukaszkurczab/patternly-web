@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createServer, preview } from 'vite';
 import { chromium } from 'playwright';
 import { createAppProducedPublicLegalTestArtifact } from './publicLegalTestArtifact.mjs';
@@ -11,7 +12,8 @@ import { publicPages } from '../src/publicPages.js';
 import { publicLegalRoute } from '../src/publicLegalLocales.js';
 import { publicSitePlugin } from './public-site.mjs';
 
-const marketingPaths = ['/', '/tracks/coding-interview', '/tracks/aws-solutions-architect-associate'];
+const marketingPaths = ['/', '/tracks/coding-interview', '/tracks/aws-solutions-architect-associate', '/tracks/claude-architecture-practice'];
+const dist = resolve(process.env.PATTERNLY_WEB_TEST_OUT_DIR ?? 'dist');
 const locales = ['en', 'pl', 'de', 'fr', 'es', 'it', 'et'];
 const legalPaths = locales.flatMap((locale) => ['privacy', 'terms'].map((name) => `${locale === 'en' ? '' : `/${locale}`}/${name}`));
 const fixture = createAppProducedPublicLegalTestArtifact();
@@ -19,7 +21,7 @@ const fixture = createAppProducedPublicLegalTestArtifact();
 test('route projection excludes unavailable locales and never advertises UNAPPROVED drafts', () => {
   const pages = publicPages(fixture);
   assert.deepEqual(pages.filter((page) => page.indexable).map((page) => page.path), marketingPaths);
-  assert.equal(pages.length, 17);
+  assert.equal(pages.length, 18);
   for (const path of legalPaths) {
     assert.equal(publicLegalRoute(path, fixture)?.locale, path.split('/').length === 2 ? 'en' : path.split('/')[1]);
     const transformed = publicSitePlugin(fixture, true).transformIndexHtml('<html><head></head></html>', { filename: '/privacy.html' });
@@ -34,6 +36,20 @@ test('route projection excludes unavailable locales and never advertises UNAPPRO
   const shape = { ...partial, testOnly: false };
   const metadata = publicSitePlugin(shape, false).transformIndexHtml('<html><head></head></html>', { filename: '/terms.html' });
   assert.deepEqual(metadata.tags.filter((tag) => tag.attrs.rel === 'alternate').map((tag) => tag.attrs.hrefLang), ['en', 'pl', 'fr', 'es', 'it', 'et']);
+});
+
+test('explicit test output rejects the repository, its descendants, ancestors and symlink aliases before building', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'patternly-web-output-guard-'));
+  try {
+    const alias = join(directory, 'repo-alias');
+    await symlink(resolve('.'), alias);
+    for (const output of ['', '.', 'dist', 'src/nested-output', '..', '/', alias, join(alias, 'new-output')]) {
+      const result = spawnSync(process.execPath, ['scripts/build-local.mjs'], { encoding: 'utf8', env: { ...process.env, PATTERNLY_WEB_TEST_OUT_DIR: output } });
+      assert.equal(result.status, 1, output);
+      assert.match(result.stderr, /Test output directory must be/u, output);
+      assert.doesNotMatch(result.stdout, /vite|canonical demo/iu, 'Rejected before build or demo preparation');
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 async function manifest(directory, prefix = '') {
@@ -57,12 +73,12 @@ test('exact local test build: Opera crawl, no-JS content, persistent locale URLs
   await writeFile(artifactPath, JSON.stringify(fixture));
   process.env.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH = artifactPath;
   process.env.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT = fixture.sourceFingerprint;
-  const before = await manifest('dist');
+  const before = await manifest(dist);
   let server;
   let browser;
   const receipt = { mode: 'local-test', deployable: false, testOnly: true, urls: [], manifest: before };
   try {
-    server = await preview({ mode: 'local-test', preview: { host: '127.0.0.1', port: 0 } });
+    server = await preview({ mode: 'local-test', build: { outDir: dist }, preview: { host: '127.0.0.1', port: 0 } });
     const base = `http://127.0.0.1:${server.httpServer.address().port}`;
     browser = await chromium.launch({ executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH, headless: true });
     receipt.browserVersion = await browser.version();
@@ -92,6 +108,16 @@ test('exact local test build: Opera crawl, no-JS content, persistent locale URLs
       assert.equal(await page.locator('link[rel="alternate"]').count(), 0, 'UNAPPROVED test legal must have no hreflang');
       const locale = legalPaths.includes(path) ? (path.split('/').length === 2 ? 'en' : path.split('/')[1]) : 'en';
       assert.equal(await page.locator('html').getAttribute('lang'), locale);
+      if (path === '/tracks/claude-architecture-practice') {
+        const content = await page.locator('main').textContent();
+        assert.match(content, /Solution Design and Architecture/u);
+        assert.match(content, /review modes depend on eligible prior learning evidence/u);
+        assert.match(content, /There is no interactive Claude sample on this website/u);
+        assert.match(content, /not affiliated with or endorsed by Anthropic/u);
+        assert.match(content, /does not establish certification readiness/u);
+        assert.equal(await page.locator('a[href="https://platform.claude.com/docs/en/build-with-claude/overview"]').count(), 1);
+        assert.equal(await page.locator('a.button-primary').getAttribute('href'), '/#claude-certified-architect-professional-certification');
+      }
       if (legalPaths.includes(path)) {
         assert.equal(await page.locator('.legal-copy').getAttribute('lang'), locale);
         const document = path.endsWith('/terms') ? 'termsOfService' : 'privacyPolicy';
@@ -122,7 +148,7 @@ test('exact local test build: Opera crawl, no-JS content, persistent locale URLs
       if (hash) assert.equal(await page.locator(`[id="${hash}"]`).count(), 1, `Missing fragment: ${url}`);
     }
     await page.goto(base + '/');
-    assert.equal(await page.locator('#tracks a[href^="/tracks/"]').count(), 2);
+    assert.deepEqual(await page.locator('#tracks a[href^="/tracks/"]').evaluateAll((links) => links.map((link) => link.getAttribute("href"))), marketingPaths.slice(1));
     const sitemap = await (await fetch(base + '/sitemap.xml')).text();
     assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/gu)].map((match) => match[1]), marketingPaths.map((path) => `https://patternly.it${path}`));
     assert.doesNotMatch(sitemap, /privacy|terms|admin|\.example/u);
@@ -210,7 +236,7 @@ test('exact local test build: Opera crawl, no-JS content, persistent locale URLs
     }
     assert.equal(manifestSource.images.filter((entry) => entry.questionId).length, 1);
     assert.equal(manifestSource.images.find((entry) => entry.questionId).questionId, 'alg-complexity-amortized-001');
-    assert.deepEqual(await manifest('dist'), before, 'Build changed during verification');
+    assert.deepEqual(await manifest(dist), before, 'Build changed during verification');
     receipt.internalLinksChecked = internalLinks.size;
     receipt.result = 'PASS';
     if (process.env.PATTERNLY_SEO_RECEIPT_PATH) await writeFile(process.env.PATTERNLY_SEO_RECEIPT_PATH, `${JSON.stringify(receipt, null, 2)}\n`);

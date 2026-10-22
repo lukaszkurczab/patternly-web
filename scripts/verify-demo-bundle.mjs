@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const dist = resolve(root, process.env.PATTERNLY_WEB_TEST_OUT_DIR ?? "dist");
 const catalog = verifyCurrentDemoCatalog();
 verifyCaptureQuestion(catalog);
 assert.equal(catalog.schemaVersion, "patternly-canonical-demo-questions-v1");
@@ -25,17 +26,17 @@ for (const sample of catalog.publicSamples) {
 const imageSample = catalog.publicSamples.find((sample) => sample.presentation === "image");
 const preview = JSON.parse(await readFile(resolve(root, "scripts/app-preview-manifest.json"), "utf8"));
 // The capture bank is historical; selected-question equality is checked above.
-assert.deepEqual((await readdir(resolve(root, "dist/app-preview"))).sort(), preview.images.map((image) => image.path.split("/").at(-1)).sort());
+assert.deepEqual((await readdir(resolve(dist, "app-preview"))).sort(), preview.images.map((image) => image.path.split("/").at(-1)).sort());
 for (const image of preview.images) {
   const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
   assert.equal(hash(await readFile(resolve(root, image.path))), image.sha256);
-  assert.equal(hash(await readFile(resolve(root, "dist", image.path.replace(/^public\//u, "")))), image.sha256);
+  assert.equal(hash(await readFile(resolve(dist, image.path.replace(/^public\//u, "")))), image.sha256);
 }
 assert.equal(imageSample.imageSha256, preview.images.find((image) => image.questionId === imageSample.questionId).sha256);
 
-const files = (await readdir(resolve(root, "dist/assets"))).filter((name) => name.endsWith(".js"));
+const files = (await readdir(resolve(dist, "assets"))).filter((name) => name.endsWith(".js"));
 assert.ok(files.length > 0, "Public build has JavaScript assets.");
-const bundles = (await Promise.all(files.map((name) => readFile(join(root, "dist/assets", name), "utf8")))).join("\n");
+const bundles = (await Promise.all(files.map((name) => readFile(join(dist, "assets", name), "utf8")))).join("\n");
 for (const demo of catalog.demos) {
   const rawDetails = demo.question.feedback.details;
   const expectedTexts = [
