@@ -39,7 +39,7 @@ test('public pages hydrate, remain readable without JS, and fit responsive width
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-    for (const width of [320, 390, 768, 1440]) {
+    for (const width of [320, 390, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(base);
       await page.waitForFunction(() => document.querySelector('#session input')?.disabled === false);

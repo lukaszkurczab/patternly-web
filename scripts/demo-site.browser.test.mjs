@@ -234,16 +234,31 @@ test("built public site displays and resets the canonical demo at desktop and na
       const hero = document.querySelector(".hero");
       const decoration = getComputedStyle(hero, "::before");
       const textOverflows = [];
+      // Marquee artwork intentionally extends inside a clipped viewport. Inspect
+      // its painted bounds while retaining the full bounds of semantic content.
+      const paintedBounds = (rect, element) => {
+        if (!element.closest('[aria-hidden="true"]')) return rect;
+        let left = rect.left;
+        let right = rect.right;
+        for (let ancestor = element.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
+          if (!['hidden', 'clip', 'auto', 'scroll'].includes(getComputedStyle(ancestor).overflowX)) continue;
+          const clip = ancestor.getBoundingClientRect();
+          left = Math.max(left, clip.left);
+          right = Math.min(right, clip.right);
+        }
+        return { left, right, width: Math.max(0, right - left) };
+      };
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if (!node.textContent.trim()) continue;
         const range = document.createRange();
         range.selectNodeContents(node);
-        for (const rect of range.getClientRects()) {
+        for (const rawRect of range.getClientRects()) {
+          const rect = paintedBounds(rawRect, node.parentElement);
           if (rect.width > 0 && (rect.left < -1 || rect.right > width + 1)) textOverflows.push({ text: node.textContent.slice(0, 80), left: rect.left, right: rect.right });
         }
       }
-      return { width, scrollWidth: document.documentElement.scrollWidth, bodyOverflowX: getComputedStyle(document.body).overflowX, decoration: { right: decoration.right, width: decoration.width }, textOverflows, elements: [...document.querySelectorAll("body *")].map((element) => ({ tag: element.tagName, className: typeof element.className === "string" ? element.className : "", right: element.getBoundingClientRect().right })).filter((element) => element.right > width + 1).slice(0, 12) };
+      return { width, scrollWidth: document.documentElement.scrollWidth, bodyOverflowX: getComputedStyle(document.body).overflowX, decoration: { right: decoration.right, width: decoration.width }, textOverflows, elements: [...document.querySelectorAll("body *")].map((element) => ({ tag: element.tagName, className: typeof element.className === "string" ? element.className : "", ...paintedBounds(element.getBoundingClientRect(), element) })).filter((element) => element.width > 0 && (element.left < -1 || element.right > width + 1)).slice(0, 12) };
     });
     // Decorative pseudo-elements extend the raw scrollWidth behind overflow-x:hidden.
     // Verify rendered content bounds, including text ranges, rather than that paint extent.

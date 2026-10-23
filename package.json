@@ -21,13 +21,16 @@
     "test:admin-config": "node --test scripts/admin-config.test.mjs",
     "test:admin-local": "node scripts/admin-local-smoke.mjs",
     "test:public-site:browser": "node --test --test-concurrency=1 scripts/public-site.browser.test.mjs scripts/demo-site.browser.test.mjs",
+    "test:public-motion:browser": "node --test scripts/public-motion.browser.test.mjs",
     "test:seo-content:browser": "node --test scripts/seo-content.browser.test.mjs",
     "prepare:public-images": "node scripts/generate-public-images.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
+    "@gsap/react": "^2.1.2",
     "firebase": "12.17.0",
+    "gsap": "^3.15.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

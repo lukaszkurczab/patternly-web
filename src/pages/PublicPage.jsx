@@ -1,3 +1,6 @@
+import "../../motion.css";
+import { usePublicMotion } from "../hooks/usePublicMotion";
+import { MotionArtwork, LearningNote, TrackMarquee } from "../components/MotionExperience";
 import { useClientReady } from "../hooks/useClientReady";
 import routeIcon from "../../assets/icons/route.svg?raw";
 import databaseIcon from "../../assets/icons/database.svg?raw";
@@ -89,42 +92,45 @@ function Header() {
   );
 }
 
-function Hero({ selectedTrack, question, titleRef }) {
+function Hero() {
   return (
     <section className="hero section-shell" id="product" aria-labelledby="hero-title">
-      <Reveal className="hero-copy">
-        <p className="eyebrow">Get ready for your next challenge</p>
-        <h1 id="hero-title">Build <span className="thesis-focus">confidence</span> through practice.</h1>
-        <p className="hero-description">Practice for technical interviews and cloud certifications, one clear question at a time.</p>
+      <div className="hero-copy">
+        <p className="eyebrow">A little practice. A clearer perspective.</p>
+        <h1 id="hero-title"><span className="hero-line">Build confidence.</span><span className="hero-line hero-line-accent">Through practice.</span></h1>
+        <p className="hero-description">Technical interviews. Cloud certifications. The confidence to understand the why.</p>
         <div className="hero-actions">
-          <a className="button button-primary" href="#session">Try a question <span aria-hidden="true">→</span></a>
-          <a className="button button-secondary" href="#tracks">Explore tracks <span aria-hidden="true">→</span></a>
+          <a className="button button-primary" href="#session">Try a question <span aria-hidden="true">↗</span></a>
+          <a className="button button-secondary" href="#tracks">Find your focus <span aria-hidden="true">↗</span></a>
         </div>
-        <p className="hero-note"><span className="status-dot" aria-hidden="true" /> Try a question. No account needed.</p>
-        <AppAvailability className="hero-note" />
-      </Reveal>
-      <Reveal className="hero-practice reveal-delay"><InteractiveQuestion key={`${selectedTrack.id}:${question.provenance.questionId}`} demo={question} progressNote={selectedTrack.demoNote} titleRef={titleRef} trackLabel={selectedTrack.demoLabel} /></Reveal>
+      </div>
+      <MotionArtwork />
+      <div className="hero-caption"><p>Practice. Understand. Try again.</p><a href="#method">Discover the method <span aria-hidden="true">↓</span></a></div>
     </section>
   );
 }
 
-function MethodSection() {
+function MethodSection({ selectedTrack, question, titleRef }) {
   return (
-    <section className="content-section section-shell" id="method" aria-labelledby="method-title">
+    <section className="content-section section-shell method-section" id="method" aria-labelledby="method-title">
       <Reveal className="section-intro">
         <p className="eyebrow">How Patternly works</p>
-        <h2 id="method-title">Learn from the answer.</h2>
+        <h2 id="method-title">Less guessing.<br />More <span className="inline-preview" aria-hidden="true"><img src="/app-preview/practice-ios.png" alt="" width="1206" height="2622" /></span> understanding.</h2>
         <p>Answer, see the reason, then try again with a clearer idea.</p>
       </Reveal>
+      <div className="method-demo">
+        <div className="method-aside"><p className="method-promise">One question can change how you see the next one.</p><p>Make a choice. Follow the reasoning. Take the idea with you.</p><p className="hero-note">Try a question. No account needed.</p><AppAvailability className="hero-note" /><LearningNote /></div>
+        <Reveal className="hero-practice"><InteractiveQuestion key={`${selectedTrack.id}:${question.provenance.questionId}`} demo={question} progressNote={selectedTrack.demoNote} titleRef={titleRef} trackLabel={selectedTrack.demoLabel} /></Reveal>
+      </div>
       <div className="practice-steps">
         <Reveal as="article" className="practice-step">
-          <div className="step-rail"><span>01</span></div><div className="step-content"><h3>Answer</h3><p>Choose the option that makes the most sense to you.</p></div>
+          <div className="step-rail"><span aria-hidden="true">↗</span></div><div className="step-content"><h3>Answer</h3><p>Choose the option that makes the most sense to you.</p></div>
         </Reveal>
         <Reveal as="article" className="practice-step reveal-delay-1">
-          <div className="step-rail"><span>02</span></div><div className="step-content"><h3>See why</h3><p>Read feedback that connects the answer to the idea behind it.</p></div>
+          <div className="step-rail"><span aria-hidden="true">↳</span></div><div className="step-content"><h3>See why</h3><p>Read feedback that connects the answer to the idea behind it.</p></div>
         </Reveal>
         <Reveal as="article" className="practice-step reveal-delay-2">
-          <div className="step-rail"><span>03</span></div><div className="step-content"><h3>Try again</h3><p className="step-emphasis">Return to the question with a clearer understanding.</p></div>
+          <div className="step-rail"><span aria-hidden="true">↻</span></div><div className="step-content"><h3>Try again</h3><p className="step-emphasis">Return to the question with a clearer understanding.</p></div>
         </Reveal>
       </div>
     </section>
@@ -160,10 +166,10 @@ function TracksSection({ selectedTrackId, onSelectTrack, ready }) {
 
 function AppSection() {
   return (
-    <section className="content-section section-shell" id="app" aria-labelledby="app-title">
+    <section className="content-section section-shell app-section" id="app" aria-labelledby="app-title">
       <Reveal className="section-intro">
         <p className="eyebrow">Inside the app</p>
-        <h2 id="app-title">A place to return to your practice.</h2>
+        <h2 id="app-title">Small moments.<br /><span>Lasting understanding.</span></h2>
         <p>For people preparing for technical interviews or studying cloud and AI concepts. Choose a topic, work through questions and explanations, and revisit your learning history.</p>
       </Reveal>
       <div className="practice-steps">
@@ -217,6 +223,7 @@ function HelpSection() {
 function Footer() {
   return (
     <footer className="site-footer">
+      <div className="footer-cta section-shell"><div className="footer-watermark" aria-hidden="true">Patternly</div><p className="eyebrow">Your next step starts here</p><h2>A clearer idea.<br />One question away.</h2><a className="button button-primary" href="#session">Make time for practice <span aria-hidden="true">↗</span></a></div>
       <div className="footer-inner"><div className="footer-brand"><Brand /><p className="footer-tagline">Practice. Understand. Try again.</p><p className="footer-note">Make time for your next step.</p></div><div className="footer-explore"><p className="eyebrow">Explore</p><div><a href="#product">Overview</a><a href="#method">How it works</a><a href="#tracks">Tracks</a><a href="#help">Help</a></div></div></div>
       <div className="footer-meta"><p>Patternly is an independent learning tool. It is not an official certification provider or a guarantee of exam outcomes.</p><p>Seller: {publicLegal.publicProfile.operator.legalName.en}. Purchases are not available on this site.</p><nav aria-label="Legal and support"><a href={publicLegal.publicLinks.privacyUrl}>Privacy</a><a href={publicLegal.publicLinks.termsUrl}>Terms</a><a href={publicLegal.publicLinks.supportUrl}>Support</a></nav></div>
     </footer>
@@ -225,6 +232,8 @@ function Footer() {
 
 export function PublicPage() {
   const ready = useClientReady();
+  const motionRoot = useRef(null);
+  usePublicMotion(motionRoot);
   const [selectedTrackId, setSelectedTrackId] = useState("coding-interview-dsa-problem-solving");
   const questionTitleRef = useRef(null);
   const previousTrackId = useRef(selectedTrackId);
@@ -236,23 +245,24 @@ export function PublicPage() {
       setSelectedTrackId(trackId);
       return;
     }
-    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("session")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
     questionTitleRef.current?.focus({ preventScroll: true });
   };
 
   useLayoutEffect(() => {
     if (previousTrackId.current === selectedTrackId) return;
     previousTrackId.current = selectedTrackId;
-    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("session")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
     questionTitleRef.current?.focus({ preventScroll: true });
   }, [selectedTrackId]);
 
   return (
-    <>
+    <div className="motion-site" ref={motionRoot}>
       <a className="skip-link" href="#main-content">Skip to content</a>
+      <div className="scroll-progress" aria-hidden="true" />
       <Header />
-      <main id="main-content" tabIndex={-1}><Hero selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><MethodSection /><AppSection /><TracksSection ready={ready} selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /><HelpSection /></main>
+      <main id="main-content" tabIndex={-1}><Hero /><TrackMarquee /><MethodSection selectedTrack={selectedTrack} question={selectedQuestion} titleRef={questionTitleRef} /><AppSection /><TracksSection ready={ready} selectedTrackId={selectedTrackId} onSelectTrack={selectTrack} /><HelpSection /></main>
       <Footer />
-    </>
+    </div>
   );
 }
