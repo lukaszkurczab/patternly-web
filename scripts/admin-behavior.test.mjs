@@ -31,6 +31,85 @@ const incidentDetails = (overrides = {}) => {
   const details = overrides.details ?? overrides.assessment?.details ?? "Poufny opis: recipient@example.com; wewnętrzna ocena.";
   return { ...incidentEntry(), title: "Roboczy tytuł incydentu", details, assessmentVersion: 1, createdAt: "2026-09-03T08:00:00Z", updatedAt: "2026-09-03T09:00:00Z", authorityExportVersion: null, authorityReason: null, subjectReason: null, authoritySubmissionReference: null, preparedRecipients: [], subjectNotifications: [], auditHistory: [{ event: "incident_created", actorPseudonym: "a".repeat(32), at: "2026-09-03T08:00:00Z", revision: null, assessmentVersion: null, snapshot: null }], ...overrides, details, assessment: incidentAssessment({ details, ...(overrides.assessment || {}) }) };
 };
+
+// Test-only exports exercise the real form and its former lookup statements with
+// identical React/DOM work. Production exports and lifecycle stay unchanged.
+const notificationLookupFixturePlugin = {
+  name: "notification-lookup-fixture",
+  enforce: "pre",
+  transform(code, id) {
+    if (!id.endsWith("/src/components/SecurityIncidentsPanel.jsx")) return;
+    const start = code.indexOf("function SubjectNotificationForms(");
+    const end = code.indexOf("\nfunction AssessmentSummary(", start);
+    assert.ok(start > 0 && end > start);
+    let legacy = code.slice(start, end).replace("function SubjectNotificationForms(", "function LegacySubjectNotificationForms(");
+    const indexStart = legacy.indexOf("  const notificationsByRecipient = new Map();");
+    const indexEnd = legacy.indexOf("  return <>", indexStart);
+    assert.ok(indexStart > 0 && indexEnd > indexStart);
+    legacy = legacy.slice(0, indexStart) + legacy.slice(indexEnd);
+    const indexedNotification = "notificationsByRecipient.get(recipient.recipientPseudonym)?.get(recipient.snapshotVersion)";
+    const indexedPending = "pendingEffects.has(`subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}`)";
+    assert.ok(legacy.includes(indexedNotification) && legacy.includes(indexedPending));
+    legacy = legacy.replace(indexedNotification, "selected.subjectNotifications.find((entry) => entry.recipientPseudonym === recipient.recipientPseudonym && entry.snapshotVersion === recipient.snapshotVersion)")
+      .replace(indexedPending, "pendingAdminOperations(\"security-incidents\", securityResource(selected.incidentId)).some((operation) => operation.effect === `subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}`)");
+    return code.replace("pendingAdminOperations, requestAdminJson", "pendingAdminOperations as readPendingAdminOperations, requestAdminJson") + `
+${legacy}
+import { createElement as fixtureElement } from "react";
+import { createRoot as fixtureCreateRoot } from "react-dom/client";
+import { flushSync as fixtureFlushSync } from "react-dom";
+let fixtureRoot;
+let fixturePendingKeys = [];
+function pendingAdminOperations(...args) {
+  const operations = readPendingAdminOperations(...args);
+  const counts = window.notificationLookupCounts;
+  if (!counts) return operations;
+  counts.pendingReads += 1;
+  return operations.map((operation) => new Proxy(operation, { get(target, key) {
+    if (key === "effect") counts.pendingEffectInspections += 1;
+    return target[key];
+  } }));
+}
+export function renderNotificationFixture(props, pending, legacy = false) {
+  if (pending !== null) {
+    for (const key of fixturePendingKeys) clearAdminOperation(key);
+    fixturePendingKeys = pending.map(markAdminOperationPending);
+  }
+  let container = document.getElementById("notification-lookup-fixture");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "notification-lookup-fixture";
+    document.body.replaceChildren(container);
+    fixtureRoot = fixtureCreateRoot(container);
+  }
+  const counts = { notificationFindInspections: 0, notificationIndexEntries: 0, pendingReads: 0, pendingEffectInspections: 0 };
+  const notifications = props.selected.subjectNotifications;
+  const countedNotifications = new Proxy(notifications, { get(target, key) {
+    if (key === "find") return (predicate) => target.find((...args) => {
+      counts.notificationFindInspections += 1;
+      return predicate(...args);
+    });
+    if (key === Symbol.iterator) return function* () {
+      for (const entry of target) { counts.notificationIndexEntries += 1; yield entry; }
+    };
+    return Reflect.get(target, key);
+  } });
+  window.notificationLookupCounts = counts;
+  try {
+    fixtureFlushSync(() => fixtureRoot.render(fixtureElement(legacy ? LegacySubjectNotificationForms : SubjectNotificationForms, {
+      ...props, selected: { ...props.selected, subjectNotifications: countedNotifications },
+      act: () => { throw new Error("fixture_must_not_send"); },
+    })));
+  } finally { delete window.notificationLookupCounts; }
+  return {
+    buttons: [...container.querySelectorAll('.admin-action-row button')].map((button) => ({ text: button.textContent, disabled: button.disabled })),
+    recoveryForms: [...container.querySelectorAll('form')].filter((form) => form.textContent.includes("Wyjaśnij nieznany wynik")).length,
+    history: container.querySelector('.admin-incident-history-notifications')?.textContent || "",
+    counts,
+  };
+}
+`;
+  },
+};
 const inspectionQuestions = [
   {
     id: "choice-inspection",
@@ -198,6 +277,7 @@ before(async () => {
   server = await createServer({
     ...resolvedViteConfig, configFile: false, root,
     cacheDir: resolve(legalFixtureDirectory, "vite-cache"),
+    plugins: [...(resolvedViteConfig.plugins || []), notificationLookupFixturePlugin],
     server: { host: "127.0.0.1", port, strictPort: true },
     resolve: { alias: {
       "firebase/app": resolve(root, "scripts/admin-behavior/firebase-app.mjs"),
@@ -687,6 +767,11 @@ test("security incident copy explains manual UODO handling and a 503 write stays
   await expect(panel.getByRole("alert")).toContainText("Wynik doręczenia jest niepewny");
   await expect(panel.getByRole("alert")).not.toContainText("SMTP");
   await expect(panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" })).toBeDisabled();
+  state.handler = null;
+  await panel.getByRole("button", { name: "Odśwież incydenty" }).click();
+  await panel.getByRole("button", { name: "Otwórz szczegóły" }).click();
+  await panel.locator("summary").filter({ hasText: "Zawiadomienie osób" }).click();
+  await expect(panel.getByRole("button", { name: "Wyślij zawiadomienie — adresat 1" })).toBeDisabled();
 });
 
 test("late incident details cannot restore sensitive UI after logout", async (t) => {
@@ -1056,6 +1141,83 @@ test("question read failure is explicit and retry restores results", async (t) =
   await page.unroute(`${api}/v1/admin/questions?**`);
   await page.getByRole("button", { name: "Odśwież dane", exact: true }).click();
   await expect(page.locator(".admin-question > summary")).toContainText("Which choice preserves ordering?");
+});
+
+async function notificationFixture(t) {
+  const context = await browser.newContext();
+  t.after(() => context.close());
+  const page = await context.newPage();
+  await page.route("**/*", (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  await page.goto(origin);
+  await page.evaluate(async () => {
+    window.notificationFixture = await import("/src/components/SecurityIncidentsPanel.jsx");
+  });
+  return (props, pending = [], legacy = false) => page.evaluate(({ props, pending, legacy }) =>
+    window.notificationFixture.renderNotificationFixture(props, pending, legacy), { props, pending, legacy });
+}
+
+test("PAT-OPT-004 exact versions, first duplicate and current pending preserve notification controls", async (t) => {
+  const render = await notificationFixture(t);
+  const recipient = (name, snapshotVersion = 1) => ({ recipientPseudonym: `recipient-${name}`, snapshotVersion });
+  const prepared = [recipient("same", 1), recipient("same", 2), recipient("duplicate"), recipient("wildcard"), recipient("available"), recipient("unknown"), recipient("history"), recipient("other-version")];
+  const notification = (recipient, status, id) => ({ ...recipient, status, deliveryId: `delivery-${id}` });
+  const selected = incidentDetails({ subjectNotificationStatus: "prepared", preparedRecipients: prepared, subjectNotifications: [
+    notification(prepared[0], "sent", 1), notification(prepared[1], "failed", 2),
+    notification(prepared[2], "pending", 3), notification(prepared[2], "sent", 4),
+    notification(prepared[5], "unknown", 5), notification(prepared[6], "superseded", 6),
+    notification(recipient("other-version", 2), "sent", 7),
+    notification(recipient("unprepared"), "unknown", 8),
+  ] });
+  const operation = (recipient, domain = "security-incidents", resource = `security:${selected.incidentId}`) => ({ domain, resource, effect: `subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}` });
+  const pending = [operation(prepared[3], "security-incidents", "*"), operation(prepared[4], "other-domain"), operation(prepared[4], "security-incidents", "security:other"), operation(recipient("other-version", 2))];
+  const props = { selected, busy: false, disabled: false, mutationLocked: false, recoveryLocked: false };
+  const legacy = await render(props, pending, true);
+  const current = await render(props, pending);
+  const controls = ({ counts, ...snapshot }) => snapshot;
+  assert.deepEqual(controls(current), controls(legacy));
+  assert.deepEqual(current.buttons.map(({ disabled }) => disabled), [true, true, true, true, false, true, true, false]);
+  assert.match(current.buttons[0].text, /Wysłane/u);
+  assert.match(current.buttons[1].text, /Wysyłka nieudana/u);
+  assert.match(current.buttons[2].text, /W trakcie wysyłki/u);
+  assert.equal(current.recoveryForms, 2);
+  assert.match(current.history, /wersja 1/u);
+  for (const flag of ["busy", "disabled", "mutationLocked"]) {
+    const locked = await render({ ...props, [flag]: true }, pending);
+    assert.equal(locked.buttons.every(({ disabled }) => disabled), true, flag);
+  }
+  // Same mounted form: changed detail data must replace the prior index.
+  const changed = { ...props, selected: { ...selected, subjectNotifications: [] } };
+  const fresh = await render(changed, []);
+  assert.equal(fresh.buttons.every(({ disabled }) => !disabled), true);
+  const blocked = await render(changed, [operation(prepared[4])]);
+  assert.equal(blocked.buttons[4].disabled, true);
+  const otherIncident = await render({ ...changed, selected: { ...changed.selected, incidentId: "si_other" } }, null);
+  assert.equal(otherIncident.buttons[4].disabled, false);
+  const wildcard = await render(changed, [operation(prepared[4], "security-incidents", "*")]);
+  assert.equal(wildcard.buttons[4].disabled, true);
+  const cleared = await render(changed, []);
+  assert.equal(cleared.buttons[4].disabled, false);
+});
+
+for (const size of [100, 500]) test(`PAT-OPT-004 ${size} recipients preserve DOM controls with one index and pending read`, async (t) => {
+  const render = await notificationFixture(t);
+  const prepared = Array.from({ length: size }, (_, index) => ({ recipientPseudonym: `recipient-${String(index).padStart(16, "0")}`, snapshotVersion: index % 2 + 1 }));
+  const statuses = ["pending", "sent", "failed", "unknown", "superseded"];
+  const selected = incidentDetails({ subjectNotificationStatus: "prepared", preparedRecipients: prepared,
+    subjectNotifications: prepared.map((recipient, index) => ({ ...recipient, status: statuses[index % statuses.length], deliveryId: `delivery-${index}` })).reverse(),
+  });
+  const pending = prepared.map((recipient) => ({ domain: "security-incidents", resource: `security:${selected.incidentId}`, effect: `subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}` })).reverse();
+  const props = { selected, busy: false, disabled: false, mutationLocked: false, recoveryLocked: false };
+  const legacy = await render(props, pending, true);
+  const current = await render(props, pending);
+  const { counts: legacyCounts, ...legacyControls } = legacy;
+  const { counts: currentCounts, ...currentControls } = current;
+  assert.deepEqual(currentControls, legacyControls);
+  assert.equal(current.buttons.length, size);
+  assert.equal(current.buttons.every(({ disabled }) => disabled), true);
+  assert.deepEqual(legacyCounts, { notificationFindInspections: size * (size + 1) / 2, notificationIndexEntries: 0, pendingReads: size, pendingEffectInspections: size * (size + 1) / 2 });
+  assert.deepEqual(currentCounts, { notificationFindInspections: 0, notificationIndexEntries: size, pendingReads: 1, pendingEffectInspections: size });
+  t.diagnostic(JSON.stringify({ recipients: size, deliveries: size, pending: size, legacy: legacyCounts, current: currentCounts, measurement: "lookup operations only; no React/DOM time claim" }));
 });
 
 test("CH-05 capability probe: mounted localhost page supports SHA-256 WebCrypto", async (t) => {

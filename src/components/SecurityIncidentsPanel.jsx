@@ -479,6 +479,18 @@ function SubjectNotificationForms({ selected, busy, disabled, mutationLocked, re
   const snapshotVersion = prepared[0]?.snapshotVersion;
   const recipientList = recipients.split(/[\n,;]/u).map((value) => value.trim()).filter(Boolean);
   const unknowns = selected.subjectNotifications.filter((notification) => notification.status === "unknown");
+  const notificationsByRecipient = new Map();
+  for (const notification of selected.subjectNotifications) {
+    let versions = notificationsByRecipient.get(notification.recipientPseudonym);
+    if (!versions) {
+      versions = new Map();
+      notificationsByRecipient.set(notification.recipientPseudonym, versions);
+    }
+    // Match the first delivery, as the previous per-recipient find did.
+    if (!versions.has(notification.snapshotVersion)) versions.set(notification.snapshotVersion, notification);
+  }
+  const pendingEffects = new Set(pendingAdminOperations("security-incidents", securityResource(selected.incidentId))
+    .map((operation) => operation.effect));
   return <>
     {(selected.subjectNotificationStatus === "not_started" || selected.subjectNotificationStatus === "failed") && <ActionForm label="Przygotuj zawiadomienie osób" buttonLabel="Przygotuj zawiadomienie" busy={busy} disabled={disabled} onSubmit={() => act({ action: "prepare_subject_notification", recipients: recipientList, subject, text })}>
       <label>Adresy odbiorców — nie będą ponownie wyświetlane<textarea maxLength={500 * 321} value={recipients} onChange={(event) => setRecipients(event.target.value)} required /></label>
@@ -489,10 +501,9 @@ function SubjectNotificationForms({ selected, busy, disabled, mutationLocked, re
       <h4 id="incident-send-title">Zawiadomienie osób</h4>
       <p>Adresy są przechowywane po stronie serwera i nie są ponownie wyświetlane. Wyślij tylko po sprawdzeniu zamrożonej treści.</p>
       <div className="admin-action-row">{prepared.map((recipient, index) => {
-        const notification = selected.subjectNotifications.find((entry) => entry.recipientPseudonym === recipient.recipientPseudonym && entry.snapshotVersion === recipient.snapshotVersion);
+        const notification = notificationsByRecipient.get(recipient.recipientPseudonym)?.get(recipient.snapshotVersion);
         const done = notification && ["pending", "sent", "failed", "unknown", "superseded"].includes(notification.status);
-        const pending = pendingAdminOperations("security-incidents", securityResource(selected.incidentId))
-          .some((operation) => operation.effect === `subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}`);
+        const pending = pendingEffects.has(`subject-notification:${recipient.recipientPseudonym}:${recipient.snapshotVersion}`);
         return <button className="button button-secondary" key={`${recipient.recipientPseudonym}-${recipient.snapshotVersion}`} disabled={busy || disabled || mutationLocked || pending || done} onClick={() => act({ action: "send_subject_notification", recipientPseudonym: recipient.recipientPseudonym, snapshotVersion: recipient.snapshotVersion })} type="button">{done ? `Adresat ${index + 1}: ${SUBJECT_NOTIFICATION[notification.status]}` : `Wyślij zawiadomienie — adresat ${index + 1}`}</button>;
       })}</div>
     </section>}
