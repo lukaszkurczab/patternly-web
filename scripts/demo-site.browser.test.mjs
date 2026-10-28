@@ -37,6 +37,14 @@ test("built public site displays and resets the canonical demo at desktop and na
   try {
     browser = await chromium.launch({ headless: true, ...(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH } : { channel: "chrome" }) });
     const page = await browser.newPage();
+    await page.addInitScript(() => {
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      window.__sessionScrollRequests = [];
+      Element.prototype.scrollIntoView = function (options) {
+        if (this.id === "session") window.__sessionScrollRequests.push(options ?? null);
+        return originalScrollIntoView.call(this, options);
+      };
+    });
     const errors = [];
     const externalRequests = [];
     const mutatingRequests = [];
@@ -155,15 +163,40 @@ test("built public site displays and resets the canonical demo at desktop and na
       await screenshot("correct");
 
       const chooseCoding = page.locator('[data-track-id="coding-interview-dsa-problem-solving"] button');
+      await page.getByRole("button", { name: /See the key idea/u }).click();
+      await assertDetailsParagraphs(page, codingDemo);
+      assert.equal(await page.getByRole("radio", { checked: true }).getAttribute("value"), codingDemo.question.answer.optionId);
       await chooseCoding.scrollIntoViewIfNeeded();
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const codingScrollCount = await page.evaluate(() => window.__sessionScrollRequests.length);
       await chooseCoding.click();
+      assert.equal(await page.evaluate(() => window.__sessionScrollRequests.length), codingScrollCount + 1, "Reactivating Coding requests its question scroll.");
+      assert.deepEqual(await page.evaluate(() => { const request = window.__sessionScrollRequests.at(-1); return { behavior: request?.behavior ?? "auto", block: request?.block }; }), { behavior: "auto", block: "start" }, "Reactivating Coding leaves scroll behavior to the reduced-motion CSS policy.");
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), "auto", "The reduced-motion preference resolves the document scroll style to auto.");
       assert.equal(await page.evaluate(() => document.activeElement?.id), "session-title", "Reactivating the current demo still returns focus to its question.");
       assert.equal(await page.locator("#session").getAttribute("data-state"), "resolved", "Selecting the already active goal preserves the current answer.");
+      assert.equal(await page.getByRole("radio", { checked: true }).getAttribute("value"), codingDemo.question.answer.optionId, "Reduced-motion reactivation retains the selected Coding answer.");
+      await assertDetailsParagraphs(page, codingDemo);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      const ordinaryReselectionCount = await page.evaluate(() => window.__sessionScrollRequests.length);
+      await chooseCoding.click();
+      assert.equal(await page.evaluate(() => window.__sessionScrollRequests.length), ordinaryReselectionCount + 1);
+      assert.deepEqual(await page.evaluate(() => { const request = window.__sessionScrollRequests.at(-1); return { behavior: request?.behavior ?? "auto", block: request?.block }; }), { behavior: "auto", block: "start" }, "Ordinary reactivation leaves scroll behavior to CSS.");
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), "smooth");
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "session-title");
+      assert.equal(await page.locator("#session").getAttribute("data-state"), "resolved", "Ordinary reactivation preserves the current answer.");
+      assert.equal(await page.getByRole("radio", { checked: true }).getAttribute("value"), codingDemo.question.answer.optionId, "Ordinary reactivation retains the selected Coding answer.");
+      await assertDetailsParagraphs(page, codingDemo);
 
       const chooseAws = page.locator('[data-track-id="aws-certified-solutions-architect-associate"] button');
       await chooseAws.scrollIntoViewIfNeeded();
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      const awsScrollCount = await page.evaluate(() => window.__sessionScrollRequests.length);
       await chooseAws.click();
       await page.waitForFunction((expectedPrompt) => document.querySelector("#session-title")?.textContent === expectedPrompt, awsDemo.question.prompt);
+      assert.equal(await page.evaluate(() => window.__sessionScrollRequests.length), awsScrollCount + 1, "Switching to AWS requests its question scroll.");
+      assert.deepEqual(await page.evaluate(() => { const request = window.__sessionScrollRequests.at(-1); return { behavior: request?.behavior ?? "auto", block: request?.block }; }), { behavior: "auto", block: "start" }, "Switching tracks leaves scroll behavior to the CSS policy.");
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), "smooth", "The no-preference mode keeps the ordinary smooth CSS scroll style.");
       assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral", "Changing the demo clears Coding answer state.");
       assert.equal(await page.getByRole("radiogroup").count(), 1);
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);
@@ -180,8 +213,14 @@ test("built public site displays and resets the canonical demo at desktop and na
       await assertDetailsParagraphs(page, awsDemo);
       await screenshot("aws-details");
       await chooseCoding.scrollIntoViewIfNeeded();
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const returnScrollCount = await page.evaluate(() => window.__sessionScrollRequests.length);
       await chooseCoding.click();
       await page.waitForFunction((expectedPrompt) => document.querySelector("#session-title")?.textContent === expectedPrompt, codingDemo.question.prompt);
+      assert.equal(await page.evaluate(() => window.__sessionScrollRequests.length), returnScrollCount + 1, "Returning to Coding requests its question scroll.");
+      assert.deepEqual(await page.evaluate(() => { const request = window.__sessionScrollRequests.at(-1); return { behavior: request?.behavior ?? "auto", block: request?.block }; }), { behavior: "auto", block: "start" }, "Returning to Coding leaves scroll behavior to the reduced-motion CSS policy.");
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), "auto");
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "session-title", "Returning to Coding focuses its question in reduced-motion mode.");
       assert.equal(await page.locator("#session").getAttribute("data-state"), "neutral", "Switching back clears AWS answer state.");
       assert.equal(await page.locator("#session-details").count(), 0);
       assert.equal(await page.getByRole("radio", { checked: true }).count(), 0);

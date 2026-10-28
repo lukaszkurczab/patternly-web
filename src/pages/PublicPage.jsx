@@ -236,14 +236,14 @@ export function PublicPage() {
       setSelectedTrackId(trackId);
       return;
     }
-    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("session")?.scrollIntoView({ block: "start" });
     questionTitleRef.current?.focus({ preventScroll: true });
   };
 
   useLayoutEffect(() => {
     if (previousTrackId.current === selectedTrackId) return;
     previousTrackId.current = selectedTrackId;
-    document.getElementById("session")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("session")?.scrollIntoView({ block: "start" });
     questionTitleRef.current?.focus({ preventScroll: true });
   }, [selectedTrackId]);
 
