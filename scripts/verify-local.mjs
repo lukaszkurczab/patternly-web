@@ -188,8 +188,9 @@ for (const [file, heading] of [['index.html', 'Build '], ['privacy.html', 'Priva
 for (const file of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'social-preview.png', '404.html']) await readFile(resolve(dist, file));
 assert.match(await readFile(resolve(dist, 'robots.txt'), 'utf8'), /Disallow: \//u);
 const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
-assert.equal((sitemap.match(/<loc>/gu) || []).length, 4);
+assert.equal((sitemap.match(/<loc>/gu) || []).length, 5);
 assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/coding-interview/u);
+assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/backend-system-design-interview/u);
 assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/aws-solutions-architect-associate/u);
 assert.match(sitemap, /https:\/\/patternly\.it\/tracks\/claude-architecture-practice/u);
 assert.doesNotMatch(sitemap, /privacy|terms/u, 'UNAPPROVED test legal must not be advertised in the sitemap.');

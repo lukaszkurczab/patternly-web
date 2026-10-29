@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/gcp-ace-trainer
-          ref: 6b1c23a5c829c4eb721c04db7414fd3d21d7b817
+          ref: 475b1e5b101d5b15684f0e47bc529470acad39d1
           path: patternly
           fetch-depth: 0
           persist-credentials: false
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lukaszkurczab/patternly-content
-          ref: 515522988ad20bb1a4508b2ad8d00873fa75cec2
+          ref: 718e4c1519f4d81438a6ed39e7bcfb84f3e385b1
           path: patternly-content
           fetch-depth: 0
           persist-credentials: false

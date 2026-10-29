@@ -12,7 +12,7 @@ import { publicPages } from '../src/publicPages.js';
 import { publicLegalRoute } from '../src/publicLegalLocales.js';
 import { publicSitePlugin } from './public-site.mjs';
 
-const marketingPaths = ['/', '/tracks/coding-interview', '/tracks/aws-solutions-architect-associate', '/tracks/claude-architecture-practice'];
+const marketingPaths = ['/', '/tracks/coding-interview', '/tracks/backend-system-design-interview', '/tracks/aws-solutions-architect-associate', '/tracks/claude-architecture-practice'];
 const dist = resolve(process.env.PATTERNLY_WEB_TEST_OUT_DIR ?? 'dist');
 const locales = ['en', 'pl', 'de', 'fr', 'es', 'it', 'et'];
 const legalPaths = locales.flatMap((locale) => ['privacy', 'terms'].map((name) => `${locale === 'en' ? '' : `/${locale}`}/${name}`));
@@ -21,7 +21,7 @@ const fixture = createAppProducedPublicLegalTestArtifact();
 test('route projection excludes unavailable locales and never advertises UNAPPROVED drafts', () => {
   const pages = publicPages(fixture);
   assert.deepEqual(pages.filter((page) => page.indexable).map((page) => page.path), marketingPaths);
-  assert.equal(pages.length, 18);
+  assert.equal(pages.length, 19);
   for (const path of legalPaths) {
     assert.equal(publicLegalRoute(path, fixture)?.locale, path.split('/').length === 2 ? 'en' : path.split('/')[1]);
     const transformed = publicSitePlugin(fixture, true).transformIndexHtml('<html><head></head></html>', { filename: '/privacy.html' });
@@ -66,6 +66,81 @@ async function manifest(directory, prefix = '') {
   return result.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+test('exact local static build: rendered metadata, content and internal links without a browser', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'patternly-web-static-seo-'));
+  const artifactPath = join(directory, 'legal.json');
+  await writeFile(artifactPath, JSON.stringify(fixture));
+  process.env.PATTERNLY_PUBLIC_LEGAL_ARTIFACT_PATH = artifactPath;
+  process.env.PATTERNLY_PUBLIC_LEGAL_EXPECTED_FINGERPRINT = fixture.sourceFingerprint;
+  const before = await manifest(dist);
+  const receipt = { mode: 'local-test', deployable: false, testOnly: true, method: 'HTTP response HTML; no browser or JavaScript execution', urls: [], manifest: before };
+  let server;
+  try {
+    server = await preview({ mode: 'local-test', build: { outDir: dist }, preview: { host: '127.0.0.1', port: 0 } });
+    const base = `http://127.0.0.1:${server.httpServer.address().port}`;
+    const titles = new Set();
+    const descriptions = new Set();
+    const links = new Set();
+    for (const path of [...marketingPaths, ...legalPaths]) {
+      const response = await fetch(base + path, { redirect: 'manual' });
+      assert.equal(response.status, 200, path);
+      const html = await response.text();
+      const head = html.split('</head>')[0];
+      const title = head.match(/<title>([^<]+)<\/title>/u)?.[1];
+      const description = head.match(/<meta name="description" content="([^"]+)"/u)?.[1];
+      assert.ok(title && description, path);
+      assert.ok(!titles.has(title), `Duplicate title: ${path}`);
+      assert.ok(!descriptions.has(description), `Duplicate description: ${path}`);
+      titles.add(title); descriptions.add(description);
+      assert.equal((html.match(/<h1(?:\s|>)/gu) || []).length, 1, path);
+      assert.ok(html.includes(`<link rel="canonical" href="https://patternly.it${path}"`), path);
+      assert.equal((head.match(/rel="canonical"/gu) || []).length, 1, path);
+      assert.ok(head.includes(`property="og:url" content="https://patternly.it${path}"`), path);
+      assert.ok(head.includes('property="og:image" content="https://patternly.it/social-preview.png"'), path);
+      assert.ok(head.includes('name="robots" content="noindex, nofollow"'), path);
+      assert.doesNotMatch(head, /rel="alternate"/u);
+      const locale = legalPaths.includes(path) && path.split('/').length > 2 ? path.split('/')[1] : 'en';
+      assert.ok(html.includes(`<html lang="${locale}"`), path);
+      assert.match(html, /<div id="root">.+<h1/su, path);
+      if (path === '/tracks/backend-system-design-interview') {
+        assert.match(html, /Learn framework and Tradeoff practice are direct practice entries/u);
+        assert.match(html, /review requires eligible prior learning evidence/u);
+        assert.match(html, /Other topics and Design Simulation require Premium access/u);
+        assert.match(html, /Decision one.*Decision two/su);
+        assert.match(html, /There is no interactive Backend sample on this website/u);
+        assert.match(html, /No interview result is guaranteed/u);
+        assert.match(html, /href="\/#backend-system-design-interview"/u);
+        assert.doesNotMatch(html, /type="radio"/u);
+      }
+      for (const match of html.matchAll(/<a\b[^>]*href="([^"]+)"/gu)) {
+        if (match[1].startsWith('/') || match[1].startsWith('#')) links.add(new URL(match[1], base + path).href);
+      }
+      receipt.urls.push({ path, status: response.status, locale, title, description });
+    }
+    for (const url of links) {
+      const response = await fetch(url, { redirect: 'manual' });
+      assert.equal(response.status, 200, url);
+      const hash = new URL(url).hash.slice(1);
+      if (hash) assert.ok((await response.text()).includes(`id="${hash}"`), `Missing fragment: ${url}`);
+    }
+    const home = await (await fetch(base + '/')).text();
+    for (const path of marketingPaths.slice(1)) assert.ok(home.includes(`href="${path}"`), `Orphan guide: ${path}`);
+    const sitemap = await (await fetch(base + '/sitemap.xml')).text();
+    assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/gu)].map((match) => match[1]), marketingPaths.map((path) => `https://patternly.it${path}`));
+    assert.doesNotMatch(sitemap, /privacy|terms|admin|\.example/u);
+    for (const path of ['/ja/terms', '/en/terms', '/pl/unknown', '/tracks/unknown', '/admin', '/privacy-request']) {
+      assert.equal((await fetch(base + path, { redirect: 'manual' })).status, 404, path);
+    }
+    assert.deepEqual(await manifest(dist), before, 'Build changed during static verification');
+    receipt.internalLinksChecked = links.size;
+    receipt.result = 'PASS';
+    if (process.env.PATTERNLY_SEO_STATIC_RECEIPT_PATH) await writeFile(process.env.PATTERNLY_SEO_STATIC_RECEIPT_PATH, `${JSON.stringify(receipt, null, 2)}\n`);
+  } finally {
+    if (server) await new Promise((done) => server.httpServer.close(done));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('exact local test build: Opera crawl, no-JS content, persistent locale URLs and bounded samples', async () => {
   assert.ok(process.env.PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH, 'Set PATTERNLY_TEST_BROWSER_EXECUTABLE_PATH to Opera.');
   const directory = await mkdtemp(join(tmpdir(), 'patternly-web-seo-'));
@@ -108,6 +183,17 @@ test('exact local test build: Opera crawl, no-JS content, persistent locale URLs
       assert.equal(await page.locator('link[rel="alternate"]').count(), 0, 'UNAPPROVED test legal must have no hreflang');
       const locale = legalPaths.includes(path) ? (path.split('/').length === 2 ? 'en' : path.split('/')[1]) : 'en';
       assert.equal(await page.locator('html').getAttribute('lang'), locale);
+      if (path === '/tracks/backend-system-design-interview') {
+        const content = await page.locator('main').textContent();
+        assert.match(content, /Learn framework and Tradeoff practice are direct practice entries/u);
+        assert.match(content, /review requires eligible prior learning evidence/u);
+        assert.match(content, /Other topics and Design Simulation require Premium access/u);
+        assert.match(content, /There is no interactive Backend sample on this website/u);
+        assert.match(content, /No interview result is guaranteed/u);
+        assert.match(content, /Decision one.*Decision two/su);
+        assert.equal(await page.locator('a.button-primary').getAttribute('href'), '/#backend-system-design-interview');
+        assert.equal(await page.locator('a[href="https://www.postgresql.org/docs/current/transaction-iso.html"]').count(), 1);
+      }
       if (path === '/tracks/claude-architecture-practice') {
         const content = await page.locator('main').textContent();
         assert.match(content, /Solution Design and Architecture/u);
