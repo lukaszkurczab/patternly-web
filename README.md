@@ -3,3 +3,5 @@
 Dokumentacja tego repozytorium znajduje się w [prywatnym sejfie Patternly](https://github.com/lukaszkurczab/obsidian-vaults/blob/main/Patternly/patternly-web/README.md). Lokalnie: [README sejfu](../../../Vaults/Patternly/patternly-web/README.md), [mapa dokumentacji](<../../../Vaults/Patternly/Mapa dokumentacji.md>), [plan](https://github.com/lukaszkurczab/obsidian-vaults/blob/main/Patternly/Og%C3%B3lne/docs/PATTERNLY-WORKING-PLAN.md) i [stan](https://github.com/lukaszkurczab/obsidian-vaults/blob/main/Patternly/Og%C3%B3lne/WORKING_STATE.md).
 
 Kod, konfiguracja i wymagane dane techniczne pozostają w tym repozytorium. Polecenia uruchomienia, testów i operacji utrzymuj w sejfie. Dostęp do prywatnego repo sejfów jest wymagany do pełnego kontekstu.
+
+Zmiany w tym repozytorium może przygotować Brokk i trafiają one do głównej wersji dopiero po zielonym sprawdzeniu „verify”.
